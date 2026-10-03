@@ -3,7 +3,8 @@
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
-import { demoWeeklySeries } from "@/lib/demo-data"
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import { LineChart } from "lucide-react"
 
 const chartConfig: ChartConfig = {
   conversas: { label: "Conversas", color: "var(--chart-1)" },
@@ -11,7 +12,14 @@ const chartConfig: ChartConfig = {
   conversoes: { label: "Conversões", color: "var(--chart-3)" },
 }
 
-export function WeeklyActivityChart() {
+export type WeeklyActivityPoint = {
+  dia: string
+  conversas: number
+  leads: number
+  conversoes: number
+}
+
+export function WeeklyActivityChart({ data = [] }: { data?: WeeklyActivityPoint[] }) {
   return (
     <Card>
       <CardHeader>
@@ -19,8 +27,19 @@ export function WeeklyActivityChart() {
         <CardDescription>Conversas, leads e conversões nos últimos 7 dias</CardDescription>
       </CardHeader>
       <CardContent>
+        {data.length === 0 ? (
+          <Empty className="h-[280px]">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <LineChart />
+              </EmptyMedia>
+              <EmptyTitle>Sem dados ainda</EmptyTitle>
+              <EmptyDescription>A atividade da semana aparece aqui conforme você usa a plataforma.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : (
         <ChartContainer config={chartConfig} className="aspect-auto h-[280px] w-full">
-          <AreaChart data={demoWeeklySeries} margin={{ left: 0, right: 0 }}>
+          <AreaChart data={data} margin={{ left: 0, right: 0 }}>
             <defs>
               <linearGradient id="fillConversas" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="var(--color-conversas)" stopOpacity={0.35} />
@@ -56,6 +75,7 @@ export function WeeklyActivityChart() {
             />
           </AreaChart>
         </ChartContainer>
+        )}
       </CardContent>
     </Card>
   )

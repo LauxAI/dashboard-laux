@@ -17,11 +17,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { DemoBanner } from "@/components/shared/demo-banner"
 import { PageHeader } from "@/components/shared/page-header"
 import { LeadStatusBadge } from "@/components/shared/status-badge"
-import { demoLeads } from "@/lib/demo-data"
-import { PlusIcon, SearchIcon } from "lucide-react"
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import { getLeads } from "@/lib/data/queries"
+import { formatRelativeTime } from "@/lib/format"
+import { PlusIcon, SearchIcon, UsersIcon } from "lucide-react"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 
 function initials(name: string) {
@@ -33,7 +34,9 @@ function initials(name: string) {
     .toUpperCase()
 }
 
-export default function LeadsPage() {
+export default async function LeadsPage() {
+  const leads = await getLeads()
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -46,8 +49,6 @@ export default function LeadsPage() {
           </Button>
         }
       />
-
-      <DemoBanner />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <InputGroup className="sm:max-w-sm">
@@ -92,44 +93,60 @@ export default function LeadsPage() {
         </div>
       </div>
 
-      <Card className="overflow-hidden p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Lead</TableHead>
-              <TableHead>Empresa</TableHead>
-              <TableHead>Origem</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Responsável</TableHead>
-              <TableHead>Última interação</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {demoLeads.map((lead) => (
-              <TableRow key={lead.id} className="cursor-pointer">
-                <TableCell>
-                  <div className="flex items-center gap-3">
-                    <Avatar size="sm">
-                      <AvatarFallback>{initials(lead.nome)}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex flex-col">
-                      <span className="font-medium text-foreground">{lead.nome}</span>
-                      <span className="text-xs text-muted-foreground">{lead.whatsapp}</span>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell className="text-muted-foreground">{lead.empresa}</TableCell>
-                <TableCell className="text-muted-foreground">{lead.origem}</TableCell>
-                <TableCell>
-                  <LeadStatusBadge status={lead.status} />
-                </TableCell>
-                <TableCell className="text-muted-foreground">{lead.responsavel}</TableCell>
-                <TableCell className="text-muted-foreground">{lead.ultimaInteracao}</TableCell>
+      {leads.length === 0 ? (
+        <Card>
+          <Empty className="py-16">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <UsersIcon />
+              </EmptyMedia>
+              <EmptyTitle>Nenhum lead ainda</EmptyTitle>
+              <EmptyDescription>
+                Os leads recebidos pelos seus canais aparecerão aqui. Cadastre o primeiro para começar.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        </Card>
+      ) : (
+        <Card className="overflow-hidden p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Lead</TableHead>
+                <TableHead>Origem</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Valor</TableHead>
+                <TableHead>Última atualização</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
+            </TableHeader>
+            <TableBody>
+              {leads.map((lead) => (
+                <TableRow key={lead.id} className="cursor-pointer">
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <Avatar size="sm">
+                        <AvatarFallback>{initials(lead.name)}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex flex-col">
+                        <span className="font-medium text-foreground">{lead.name}</span>
+                        <span className="text-xs text-muted-foreground">{lead.phone ?? lead.email ?? ""}</span>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{lead.source ?? "—"}</TableCell>
+                  <TableCell>
+                    <LeadStatusBadge status={lead.status} />
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {lead.value ? `R$ ${Number(lead.value).toLocaleString("pt-BR")}` : "—"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{formatRelativeTime(lead.updated_at)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      )}
     </div>
   )
 }

@@ -17,11 +17,38 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { demoNotifications } from "@/lib/demo-data"
+import { createClient } from "@/lib/supabase/client"
 
-export function AppHeader() {
+function getInitials(name: string) {
+  const parts = name.trim().split(/\s+/)
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+}
+
+type HeaderNotification = {
+  id: string
+  title: string
+  message: string | null
+  read: boolean
+  created_at: string
+}
+
+export function AppHeader({
+  user,
+  notifications = [],
+}: {
+  user: { name: string; email: string }
+  notifications?: HeaderNotification[]
+}) {
   const router = useRouter()
-  const unreadCount = demoNotifications.filter((n) => !n.lida).length
+  const unreadCount = notifications.filter((n) => !n.read).length
+
+  async function handleLogout() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push("/login")
+    router.refresh()
+  }
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
@@ -49,21 +76,27 @@ export function AppHeader() {
           <DropdownMenuContent align="end" className="w-80">
             <DropdownMenuLabel>Notificações</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              {demoNotifications.slice(0, 5).map((notification) => (
-                <DropdownMenuItem
-                  key={notification.id}
-                  onClick={() => router.push("/notificacoes")}
-                  className="flex flex-col items-start gap-0.5 whitespace-normal"
-                >
-                  <div className="flex w-full items-center gap-2">
-                    {!notification.lida && <span className="size-1.5 shrink-0 rounded-full bg-primary" />}
-                    <span className="text-sm font-medium text-foreground">{notification.titulo}</span>
-                  </div>
-                  <span className="text-xs text-muted-foreground">{notification.horario}</span>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuGroup>
+            {notifications.length > 0 ? (
+              <DropdownMenuGroup>
+                {notifications.slice(0, 5).map((notification) => (
+                  <DropdownMenuItem
+                    key={notification.id}
+                    onClick={() => router.push("/notificacoes")}
+                    className="flex flex-col items-start gap-0.5 whitespace-normal"
+                  >
+                    <div className="flex w-full items-center gap-2">
+                      {!notification.read && <span className="size-1.5 shrink-0 rounded-full bg-primary" />}
+                      <span className="text-sm font-medium text-foreground">{notification.title}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">{notification.message}</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuGroup>
+            ) : (
+              <p className="px-2 py-4 text-center text-sm text-muted-foreground">
+                Nenhuma notificação por aqui.
+              </p>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => router.push("/notificacoes")} className="justify-center text-sm">
               Ver todas as notificações
@@ -72,16 +105,18 @@ export function AppHeader() {
         </DropdownMenu>
 
         <DropdownMenu>
-              <DropdownMenuTrigger render={<Button variant="ghost" className="gap-2 px-1.5" />}>
+          <DropdownMenuTrigger render={<Button variant="ghost" className="gap-2 px-1.5" />}>
             <Avatar className="size-7">
-              <AvatarFallback className="bg-primary/15 text-xs text-primary">CR</AvatarFallback>
+              <AvatarFallback className="bg-primary/15 text-xs text-primary">
+                {getInitials(user.name)}
+              </AvatarFallback>
             </Avatar>
-            <span className="hidden text-sm font-medium sm:inline">Camila Reis</span>
+            <span className="hidden text-sm font-medium sm:inline">{user.name}</span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel className="flex flex-col gap-0.5">
-              <span className="text-sm font-medium text-foreground">Camila Reis</span>
-              <span className="text-xs font-normal text-muted-foreground">camila@suaempresa.com.br</span>
+              <span className="text-sm font-medium text-foreground">{user.name}</span>
+              <span className="truncate text-xs font-normal text-muted-foreground">{user.email}</span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
@@ -95,7 +130,7 @@ export function AppHeader() {
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push("/login")} className="text-destructive">
+            <DropdownMenuItem onClick={handleLogout} className="text-destructive">
               <LogOut />
               Sair
             </DropdownMenuItem>

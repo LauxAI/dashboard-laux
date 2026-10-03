@@ -1,14 +1,35 @@
 import type { ReactNode } from "react"
+import { redirect } from "next/navigation"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/layout/app-sidebar"
 import { AppHeader } from "@/components/layout/app-header"
+import { createClient } from "@/lib/supabase/server"
+import { getCompany, getNotifications } from "@/lib/data/queries"
 
-export default function DashboardLayout({ children }: { children: ReactNode }) {
+export default async function DashboardLayout({ children }: { children: ReactNode }) {
+  const supabase = await createClient()
+  const { data: userData, error } = await supabase.auth.getUser()
+
+  if (error || !userData?.user) {
+    redirect("/login")
+  }
+
+  const [company, { data: profile }, notifications] = await Promise.all([
+    getCompany(),
+    supabase.from("profiles").select("full_name, email").eq("id", userData.user.id).maybeSingle(),
+    getNotifications(),
+  ])
+
+  const user = {
+    name: profile?.full_name || userData.user.email?.split("@")[0] || "Usuário",
+    email: profile?.email || userData.user.email || "",
+  }
+
   return (
     <SidebarProvider>
-      <AppSidebar />
+      <AppSidebar companyName={company?.name ?? "Minha Empresa"} userName={user.name} userEmail={user.email} />
       <SidebarInset>
-        <AppHeader />
+        <AppHeader user={user} notifications={notifications} />
         <main className="flex flex-1 flex-col gap-6 p-4 md:p-6">{children}</main>
       </SidebarInset>
     </SidebarProvider>

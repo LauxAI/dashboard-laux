@@ -1,26 +1,50 @@
 "use client"
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Suspense, useState } from "react"
 import { Eye, EyeOff, Loader2, LogIn } from "lucide-react"
 import { AuthShell } from "@/components/auth/auth-shell"
 import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
+import { createClient } from "@/lib/supabase/client"
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    setError(null)
     setIsLoading(true)
-    setTimeout(() => {
-      router.push("/dashboard")
-    }, 900)
+
+    const formData = new FormData(event.currentTarget)
+    const email = String(formData.get("email") ?? "")
+    const password = String(formData.get("password") ?? "")
+
+    const supabase = createClient()
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+
+    if (signInError) {
+      setIsLoading(false)
+      if (signInError.message.toLowerCase().includes("email not confirmed")) {
+        setError("Confirme seu e-mail antes de entrar. Verifique sua caixa de entrada.")
+      } else if (signInError.status === 429) {
+        setError("Muitas tentativas. Aguarde um momento e tente novamente.")
+      } else {
+        setError("E-mail ou senha inválidos.")
+      }
+      return
+    }
+
+    const next = searchParams.get("next") || "/dashboard"
+    router.push(next)
+    router.refresh()
   }
 
   return (
@@ -38,11 +62,20 @@ export default function LoginPage() {
     >
       <form onSubmit={handleSubmit}>
         <FieldGroup>
-          <Field>
+          <Field data-invalid={error ? true : undefined}>
             <FieldLabel htmlFor="email">E-mail</FieldLabel>
-            <Input id="email" type="email" placeholder="voce@suaempresa.com.br" required autoFocus />
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              placeholder="voce@suaempresa.com.br"
+              required
+              autoFocus
+              disabled={isLoading}
+              aria-invalid={error ? true : undefined}
+            />
           </Field>
-          <Field>
+          <Field data-invalid={error ? true : undefined}>
             <div className="flex items-center justify-between">
               <FieldLabel htmlFor="password">Senha</FieldLabel>
               <Link href="/esqueci-senha" className="text-xs font-medium text-primary hover:underline">
@@ -52,9 +85,12 @@ export default function LoginPage() {
             <InputGroup>
               <InputGroupInput
                 id="password"
+                name="password"
                 type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
                 required
+                disabled={isLoading}
+                aria-invalid={error ? true : undefined}
               />
               <InputGroupAddon align="inline-end">
                 <button
@@ -67,7 +103,7 @@ export default function LoginPage() {
                 </button>
               </InputGroupAddon>
             </InputGroup>
-            <FieldDescription>Use o e-mail e senha cadastrados pela sua empresa.</FieldDescription>
+            {error ? <FieldError>{error}</FieldError> : <FieldDescription>Use o e-mail e senha cadastrados pela sua empresa.</FieldDescription>}
           </Field>
           <Button type="submit" disabled={isLoading} className="mt-1">
             {isLoading ? (
@@ -80,5 +116,13 @@ export default function LoginPage() {
         </FieldGroup>
       </form>
     </AuthShell>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   )
 }

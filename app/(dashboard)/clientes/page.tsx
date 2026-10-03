@@ -1,5 +1,4 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
@@ -11,10 +10,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { DemoBanner } from "@/components/shared/demo-banner"
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { PageHeader } from "@/components/shared/page-header"
-import { demoContacts } from "@/lib/demo-data"
-import { PlusIcon, SearchIcon } from "lucide-react"
+import { getClients } from "@/lib/data/queries"
+import { formatDateTimeBRL } from "@/lib/format"
+import { PlusIcon, SearchIcon, UsersIcon } from "lucide-react"
 
 function initials(name: string) {
   return name
@@ -25,7 +25,9 @@ function initials(name: string) {
     .toUpperCase()
 }
 
-export default function ClientesPage() {
+export default async function ClientesPage() {
+  const clients = await getClients()
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -39,8 +41,6 @@ export default function ClientesPage() {
         }
       />
 
-      <DemoBanner />
-
       <InputGroup className="sm:max-w-sm">
         <InputGroupAddon>
           <SearchIcon />
@@ -48,50 +48,52 @@ export default function ClientesPage() {
         <InputGroupInput placeholder="Buscar por nome, empresa ou e-mail" />
       </InputGroup>
 
-      <Card className="overflow-hidden p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Contato</TableHead>
-              <TableHead>Empresa</TableHead>
-              <TableHead>WhatsApp</TableHead>
-              <TableHead>Tags</TableHead>
-              <TableHead>Origem</TableHead>
-              <TableHead>Último contato</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {demoContacts.map((contact) => (
-              <TableRow key={contact.id} className="cursor-pointer">
-                <TableCell>
-                  <div className="flex items-center gap-3">
-                    <Avatar size="sm">
-                      <AvatarFallback>{initials(contact.nome)}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex flex-col">
-                      <span className="font-medium text-foreground">{contact.nome}</span>
-                      <span className="text-xs text-muted-foreground">{contact.email}</span>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell className="text-muted-foreground">{contact.empresa}</TableCell>
-                <TableCell className="text-muted-foreground">{contact.whatsapp}</TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap gap-1.5">
-                    {contact.tags.map((tag) => (
-                      <Badge key={tag} variant="secondary" className="font-normal">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                </TableCell>
-                <TableCell className="text-muted-foreground">{contact.origem}</TableCell>
-                <TableCell className="text-muted-foreground">{contact.ultimoContato}</TableCell>
+      {clients.length === 0 ? (
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <UsersIcon />
+            </EmptyMedia>
+            <EmptyTitle>Nenhum cliente ainda</EmptyTitle>
+            <EmptyDescription>Os contatos e clientes atendidos pela sua operação aparecem aqui.</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : (
+        <Card className="overflow-hidden p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Contato</TableHead>
+                <TableHead>Empresa</TableHead>
+                <TableHead>WhatsApp</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Cliente desde</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
+            </TableHeader>
+            <TableBody>
+              {clients.map((client) => (
+                <TableRow key={client.id} className="cursor-pointer">
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <Avatar size="sm">
+                        <AvatarFallback>{initials(client.name)}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex flex-col">
+                        <span className="font-medium text-foreground">{client.name}</span>
+                        <span className="text-xs text-muted-foreground">{client.email ?? "—"}</span>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{client.company_name ?? "—"}</TableCell>
+                  <TableCell className="text-muted-foreground">{client.phone ?? "—"}</TableCell>
+                  <TableCell className="text-muted-foreground capitalize">{client.status}</TableCell>
+                  <TableCell className="text-muted-foreground">{formatDateTimeBRL(client.created_at)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      )}
     </div>
   )
 }

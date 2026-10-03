@@ -1,6 +1,4 @@
 import { PageHeader } from "@/components/shared/page-header"
-import { DemoBanner } from "@/components/shared/demo-banner"
-import { TeamStatusBadge } from "@/components/shared/status-badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,17 +10,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { demoTeam } from "@/lib/demo-data"
+import { getTeamMembers } from "@/lib/data/queries"
 import { UserPlusIcon } from "lucide-react"
 
-const cargoLabels: Record<string, string> = {
-  administrador: "Administrador",
-  gestor: "Gestor",
-  atendente: "Atendente",
+const roleLabels: Record<string, string> = {
+  owner: "Proprietário",
+  admin: "Administrador",
+  member: "Membro",
 }
 
-function initials(nome: string) {
-  return nome
+function initials(name: string) {
+  return name
     .split(" ")
     .slice(0, 2)
     .map((p) => p[0])
@@ -30,7 +28,9 @@ function initials(nome: string) {
     .toUpperCase()
 }
 
-export default function EquipePage() {
+export default async function EquipePage() {
+  const members = await getTeamMembers()
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -44,37 +44,31 @@ export default function EquipePage() {
         }
       />
 
-      <DemoBanner />
-
       <div className="overflow-hidden rounded-lg border border-border">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Membro</TableHead>
               <TableHead>Função</TableHead>
-              <TableHead>Status</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {demoTeam.map((member) => (
-              <TableRow key={member.id}>
+            {members.map((member) => (
+              <TableRow key={member.user_id}>
                 <TableCell>
                   <div className="flex items-center gap-3">
                     <Avatar className="size-9">
-                      <AvatarFallback>{initials(member.nome)}</AvatarFallback>
+                      <AvatarFallback>{initials(member.full_name ?? member.email ?? "?")}</AvatarFallback>
                     </Avatar>
                     <div>
-                      <div className="font-medium text-foreground">{member.nome}</div>
-                      <div className="text-sm text-muted-foreground">{member.email}</div>
+                      <div className="font-medium text-foreground">{member.full_name ?? "Sem nome"}</div>
+                      <div className="text-sm text-muted-foreground">{member.email ?? "—"}</div>
                     </div>
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Badge variant="secondary">{cargoLabels[member.cargo]}</Badge>
-                </TableCell>
-                <TableCell>
-                  <TeamStatusBadge status={member.status} />
+                  <Badge variant="secondary">{roleLabels[member.role] ?? member.role}</Badge>
                 </TableCell>
                 <TableCell className="text-right">
                   <Button variant="ghost" size="sm">
