@@ -1,7 +1,7 @@
 import { ActionForm } from "@/components/shared/action-form"
 import { PageHeader } from "@/components/shared/page-header"
 import { SectionCard } from "@/components/shared/section-card"
-import { EmptyState } from "@/components/states/states"
+import { EmptyState } from "@/components/states/empty-state"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { getCompany } from "@/lib/data/queries"

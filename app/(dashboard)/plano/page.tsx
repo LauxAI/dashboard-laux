@@ -1,7 +1,7 @@
 import { ReceiptIcon } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
 import { PendingActionButton } from "@/components/shared/pending-action-button"
-import { EmptyState } from "@/components/states/states"
+import { EmptyState } from "@/components/states/empty-state"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { getPlanUsage } from "@/lib/data/queries"
 import { formatNumber } from "@/lib/format"

@@ -6,7 +6,7 @@ import { WeeklyActivityChart, type WeeklyActivityPoint } from "@/components/dash
 import { PageHeader } from "@/components/shared/page-header"
 import { StatCard } from "@/components/shared/stat-card"
 import { StatusBadge } from "@/components/shared/status-badge"
-import { EmptyState } from "@/components/states/states"
+import { EmptyState } from "@/components/states/empty-state"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { getActivities, getAgents, getAutomations, getConversations, getLeads } from "@/lib/data/queries"
