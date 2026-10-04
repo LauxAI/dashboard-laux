@@ -1,68 +1,68 @@
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import { CalendarDays } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
-import { AppointmentStatusBadge } from "@/components/shared/status-badge"
+import { StatusBadge } from "@/components/shared/status-badge"
+import { EmptyState, ErrorState } from "@/components/states/states"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getAppointments } from "@/lib/data/queries"
-import { CalendarIcon, ClockIcon, PlusIcon } from "lucide-react"
+import type { Appointment } from "@/lib/domain/types"
+import { formatDateBRL, formatTimeBRL } from "@/lib/format"
+
+function groupByDay(appointments: Appointment[]) {
+  const groups = new Map<string, Appointment[]>()
+  for (const appointment of appointments) {
+    const key = formatDateBRL(appointment.startsAt)
+    groups.set(key, [...(groups.get(key) ?? []), appointment])
+  }
+  return [...groups.entries()]
+}
 
 export default async function AgendaPage() {
-  const appointments = await getAppointments()
+  const { data: appointments, error } = await getAppointments()
+  const sorted = [...appointments].sort((a, b) => a.startsAt.localeCompare(b.startsAt))
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Agenda"
-        description="Compromissos e agendamentos feitos pela sua equipe e pelos agentes de IA"
-        actions={
-          <Button>
-            <PlusIcon data-icon="inline-start" />
-            Novo agendamento
-          </Button>
-        }
-      />
+      <PageHeader title="Agenda" description="Reuniões e compromissos marcados com seus contatos" />
 
-      {appointments.length === 0 ? (
-        <Empty>
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <CalendarIcon />
-            </EmptyMedia>
-            <EmptyTitle>Nenhum agendamento ainda</EmptyTitle>
-            <EmptyDescription>Os compromissos da sua equipe e dos agentes de IA aparecem aqui.</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+      {error ? (
+        <ErrorState description={error} />
+      ) : sorted.length === 0 ? (
+        <EmptyState
+          icon={CalendarDays}
+          title="Nenhum compromisso"
+          description="Agendamentos feitos pela equipe ou pelos agentes de IA aparecerão aqui."
+        />
       ) : (
-        <Card className="divide-y divide-border p-0">
-          {appointments.map((appointment) => {
-            const scheduledAt = new Date(appointment.scheduled_at)
-            return (
-              <div
-                key={appointment.id}
-                className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="flex flex-col items-center justify-center rounded-lg border border-border px-3 py-2 text-center">
-                    <span className="text-xs text-muted-foreground">
-                      {scheduledAt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
-                    </span>
-                    <span className="flex items-center gap-1 text-sm font-medium text-foreground">
-                      <ClockIcon className="size-3" />
-                      {scheduledAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                    </span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium text-foreground">{appointment.title}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {appointment.client_name ?? "Sem cliente vinculado"}
-                    </span>
-                  </div>
-                </div>
-                <AppointmentStatusBadge status={appointment.status as "confirmado" | "pendente" | "cancelado"} />
-              </div>
-            )
-          })}
-        </Card>
+        <div className="flex flex-col gap-4">
+          {groupByDay(sorted).map(([day, items]) => (
+            <Card key={day}>
+              <CardHeader>
+                <CardTitle className="text-base">{day}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="flex flex-col divide-y divide-border">
+                  {items.map((appointment) => (
+                    <li key={appointment.id} className="flex flex-wrap items-center justify-between gap-4 py-3">
+                      <div className="flex items-center gap-4">
+                        <span className="w-24 shrink-0 text-sm tabular-nums text-muted-foreground">
+                          {formatTimeBRL(appointment.startsAt)}
+                          {appointment.endsAt ? ` – ${formatTimeBRL(appointment.endsAt)}` : ""}
+                        </span>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium text-foreground">{appointment.title}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {[appointment.clientName, appointment.ownerName].filter(Boolean).join(" · ") || "Sem participantes"}
+                          </span>
+                        </div>
+                      </div>
+                      <StatusBadge kind="appointment" status={appointment.status} />
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
     </div>
   )

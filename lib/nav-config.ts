@@ -39,6 +39,6 @@ export const companyNav: NavItem[] = [
   { title: "Empresa", href: "/empresa", icon: Building2 },
   { title: "Equipe", href: "/equipe", icon: UsersRound },
   { title: "Notificações", href: "/notificacoes", icon: Bell },
-  { title: "Plano e Faturamento", href: "/faturamento", icon: CreditCard },
+  { title: "Plano e Faturamento", href: "/plano", icon: CreditCard },
   { title: "Configurações", href: "/configuracoes", icon: Settings },
 ]

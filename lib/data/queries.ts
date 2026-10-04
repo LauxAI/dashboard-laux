@@ -1,333 +1,162 @@
 import { createClient } from "@/lib/supabase/server"
+import { normalizeRole } from "@/lib/domain/catalogs"
+import type {
+  Activity,
+  AIAgent,
+  Appointment,
+  Automation,
+  Client,
+  Company,
+  Conversation,
+  Integration,
+  Lead,
+  Membership,
+  Message,
+  Notification,
+  PlanUsage,
+  TeamMember,
+  User,
+} from "@/lib/domain/types"
+import {
+  toActivity,
+  toAgent,
+  toAppointment,
+  toAutomation,
+  toClient,
+  toCompany,
+  toConversation,
+  toIntegration,
+  toLead,
+  toMessage,
+  toNotification,
+  toTeamMember,
+  type Row,
+} from "./adapters"
+import { isMissingResource, ok, toResult, type QueryResult } from "./result"
 
-export type Company = {
-  id: string
-  name: string
-  plan: string
-  created_at: string
-  segmento: string | null
-  site: string | null
-  cnpj: string | null
-  endereco: string | null
-  cidade: string | null
+/**
+ * Leituras do servidor. O isolamento por empresa é garantido pelo RLS do
+ * Supabase; aqui apenas lemos e convertemos para entidades de domínio.
+ */
+
+type ListOptions = { orderBy?: string; ascending?: boolean; limit?: number }
+
+async function listRows<T>(
+  table: string,
+  map: (row: Row) => T,
+  errorMessage: string,
+  { orderBy = "created_at", ascending = false, limit }: ListOptions = {},
+): Promise<QueryResult<T[]>> {
+  const supabase = await createClient()
+  let query = supabase.from(table).select("*").order(orderBy, { ascending })
+  if (limit) query = query.limit(limit)
+  const response = await query
+  return toResult(response as { data: Row[] | null; error: { code?: string } | null }, (rows) => rows.map(map), [], errorMessage)
 }
 
-export type Profile = {
-  id: string
-  email: string | null
-  full_name: string | null
+async function getRowById<T>(table: string, id: string, map: (row: Row) => T, errorMessage: string) {
+  const supabase = await createClient()
+  const response = await supabase.from(table).select("*").eq("id", id).maybeSingle()
+  return toResult<Row, T | null>(response as { data: Row | null; error: { code?: string } | null }, map, null, errorMessage)
 }
 
-export type Lead = {
-  id: string
-  name: string
-  email: string | null
-  phone: string | null
-  source: string | null
-  status: string
-  value: number | null
-  notes: string | null
-  created_at: string
-}
-
-export type Client = {
-  id: string
-  name: string
-  email: string | null
-  phone: string | null
-  company_name: string | null
-  status: string
-  created_at: string
-}
-
-export type Conversation = {
-  id: string
-  contact_name: string
-  channel: string
-  status: string
-  last_message: string | null
-  unread_count: number
-  updated_at: string
-  created_at: string
-}
-
-export type Message = {
-  id: string
-  conversation_id: string
-  sender: string
-  content: string
-  created_at: string
-}
-
-export type Automation = {
-  id: string
-  name: string
-  description: string | null
-  trigger: string | null
-  status: string
-  executions_count: number
-  created_at: string
-}
-
-export type AiAgent = {
-  id: string
-  name: string
-  description: string | null
-  channel: string | null
-  status: string
-  conversations_count: number
-  created_at: string
-}
-
-export type Appointment = {
-  id: string
-  title: string
-  client_name: string | null
-  scheduled_at: string
-  status: string
-  created_at: string
-}
-
-export type NotificationRow = {
-  id: string
-  title: string
-  message: string | null
-  type: string
-  read: boolean
-  created_at: string
-}
-
-export type Activity = {
-  id: string
-  type: string
-  description: string
-  created_at: string
-}
-
-export type Integration = {
-  id: string
-  provider: string
-  status: string
-  connected_at: string | null
-}
-
-export type TeamMember = {
-  user_id: string
-  role: string
-  created_at: string
-  full_name: string | null
-  email: string | null
-}
-
-/** Returns the authenticated user's company, or null if unauthenticated/unprovisioned. */
 export async function getCompany(): Promise<Company | null> {
   const supabase = await createClient()
-  const { data, error } = await supabase
-    .from("companies")
-    .select("id, name, plan, created_at, segmento, site, cnpj, endereco, cidade")
-    .maybeSingle()
+  const { data, error } = await supabase.from("companies").select("*").maybeSingle()
   if (error || !data) return null
-  return data
+  return toCompany(data as Row)
 }
 
-export async function getProfile(): Promise<Profile | null> {
+export async function getCurrentUser(): Promise<User | null> {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return null
-  const { data, error } = await supabase.from("profiles").select("id, email, full_name").eq("id", user.id).maybeSingle()
-  if (error || !data) return null
-  return data
-}
-
-export async function getDashboardCounts() {
-  const supabase = await createClient()
-  const [leads, conversations, clients, appointments] = await Promise.all([
-    supabase.from("leads").select("*", { count: "exact", head: true }),
-    supabase.from("conversations").select("*", { count: "exact", head: true }),
-    supabase.from("clients").select("*", { count: "exact", head: true }),
-    supabase.from("appointments").select("*", { count: "exact", head: true }),
-  ])
+  const { data } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle()
+  const profile = (data ?? {}) as Row
   return {
-    leads: leads.count ?? 0,
-    conversations: conversations.count ?? 0,
-    clients: clients.count ?? 0,
-    appointments: appointments.count ?? 0,
+    id: user.id,
+    email: (profile.email as string | null) ?? user.email ?? null,
+    fullName: (profile.full_name as string | null) ?? null,
+    phone: (profile.phone as string | null) ?? null,
   }
 }
 
-export async function getLeads(): Promise<Lead[]> {
+export async function getCurrentMembership(): Promise<Membership | null> {
   const supabase = await createClient()
-  const { data } = await supabase.from("leads").select("*").order("created_at", { ascending: false })
-  return data ?? []
-}
-
-export async function getClients(): Promise<Client[]> {
-  const supabase = await createClient()
-  const { data } = await supabase.from("clients").select("*").order("created_at", { ascending: false })
-  return data ?? []
-}
-
-export async function getConversations(): Promise<Conversation[]> {
-  const supabase = await createClient()
-  const { data } = await supabase.from("conversations").select("*").order("updated_at", { ascending: false })
-  return data ?? []
-}
-
-export async function getMessages(conversationId: string): Promise<Message[]> {
-  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return null
   const { data } = await supabase
+    .from("company_members")
+    .select("company_id, role")
+    .eq("user_id", user.id)
+    .maybeSingle()
+  if (!data) return null
+  return { companyId: data.company_id, role: normalizeRole(data.role), rawRole: data.role ?? "member" }
+}
+
+export const getLeads = () => listRows<Lead>("leads", toLead, "Não foi possível carregar os leads.")
+export const getLead = (id: string) => getRowById<Lead>("leads", id, toLead, "Não foi possível carregar o lead.")
+
+export const getClients = () => listRows<Client>("clients", toClient, "Não foi possível carregar os clientes.")
+export const getClientById = (id: string) =>
+  getRowById<Client>("clients", id, toClient, "Não foi possível carregar o cliente.")
+
+export const getConversations = () =>
+  listRows<Conversation>("conversations", toConversation, "Não foi possível carregar as conversas.", {
+    orderBy: "updated_at",
+  })
+
+export async function getMessages(conversationId: string): Promise<QueryResult<Message[]>> {
+  const supabase = await createClient()
+  const response = await supabase
     .from("messages")
     .select("*")
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true })
-  return data ?? []
+  return toResult(response as { data: Row[] | null; error: { code?: string } | null }, (rows) => rows.map(toMessage), [], "Não foi possível carregar as mensagens.")
 }
 
-export async function getAutomations(): Promise<Automation[]> {
-  const supabase = await createClient()
-  const { data } = await supabase.from("automations").select("*").order("created_at", { ascending: false })
-  return data ?? []
-}
+export const getAutomations = () =>
+  listRows<Automation>("automations", toAutomation, "Não foi possível carregar as automações.")
 
-export async function getAiAgents(): Promise<AiAgent[]> {
-  const supabase = await createClient()
-  const { data } = await supabase.from("ai_agents").select("*").order("created_at", { ascending: false })
-  return data ?? []
-}
+export const getAgents = () => listRows<AIAgent>("ai_agents", toAgent, "Não foi possível carregar os agentes.")
+export const getAgent = (id: string) =>
+  getRowById<AIAgent>("ai_agents", id, toAgent, "Não foi possível carregar o agente.")
 
-export async function getAppointments(): Promise<Appointment[]> {
-  const supabase = await createClient()
-  const { data } = await supabase.from("appointments").select("*").order("scheduled_at", { ascending: true })
-  return data ?? []
-}
-
-export async function getNotifications(): Promise<NotificationRow[]> {
-  const supabase = await createClient()
-  const { data } = await supabase.from("notifications").select("*").order("created_at", { ascending: false })
-  return data ?? []
-}
-
-export async function getActivities(): Promise<Activity[]> {
-  const supabase = await createClient()
-  const { data } = await supabase
-    .from("activities")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(10)
-  return data ?? []
-}
-
-export async function getIntegrations(): Promise<Integration[]> {
-  const supabase = await createClient()
-  const { data } = await supabase.from("integrations").select("id, provider, status, connected_at")
-  return data ?? []
-}
-
-const leadFunnelStages = [
-  { status: "novo", label: "Novo" },
-  { status: "contatado", label: "Contatado" },
-  { status: "qualificado", label: "Qualificado" },
-  { status: "negociacao", label: "Em negociação" },
-  { status: "cliente", label: "Cliente" },
-] as const
-
-export async function getAnalytics() {
-  const supabase = await createClient()
-  const [{ data: leads }, { data: conversations }] = await Promise.all([
-    supabase.from("leads").select("status, created_at"),
-    supabase.from("conversations").select("channel, status, created_at"),
-  ])
-
-  const leadList = leads ?? []
-  const conversationList = conversations ?? []
-
-  const totalLeads = leadList.length
-  const wonLeads = leadList.filter((l) => l.status === "cliente").length
-  const conversionRate = totalLeads > 0 ? (wonLeads / totalLeads) * 100 : 0
-
-  const resolvedConversations = conversationList.filter((c) => c.status === "resolvida").length
-  const resolvedRate = conversationList.length > 0 ? (resolvedConversations / conversationList.length) * 100 : 0
-
-  const qualifiedLeads = leadList.filter((l) =>
-    ["qualificado", "negociacao", "cliente"].includes(l.status),
-  ).length
-
-  const funnel = leadFunnelStages.map(({ status, label }) => ({
-    etapa: label,
-    valor: leadList.filter((l) => l.status === status).length,
-  }))
-
-  const weekDayLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
-  const now = new Date()
-  const isSameDay = (isoDate: string, day: Date) => {
-    const created = new Date(isoDate)
-    return (
-      created.getFullYear() === day.getFullYear() &&
-      created.getMonth() === day.getMonth() &&
-      created.getDate() === day.getDate()
-    )
-  }
-  const weekly = Array.from({ length: 7 }, (_, i) => {
-    const day = new Date(now)
-    day.setDate(now.getDate() - (6 - i))
-    return {
-      dia: weekDayLabels[day.getDay()],
-      conversas: conversationList.filter((c) => isSameDay(c.created_at, day)).length,
-      leads: leadList.filter((l) => isSameDay(l.created_at, day)).length,
-      conversoes: leadList.filter((l) => l.status === "cliente" && isSameDay(l.created_at, day)).length,
-    }
+export const getAppointments = () =>
+  listRows<Appointment>("appointments", toAppointment, "Não foi possível carregar a agenda.", {
+    orderBy: "scheduled_at",
+    ascending: true,
   })
 
-  return {
-    totalLeads,
-    conversionRate,
-    resolvedRate,
-    qualifiedLeads,
-    funnel,
-    leads: leadList,
-    weekly,
-  }
-}
+export const getNotifications = () =>
+  listRows<Notification>("notifications", toNotification, "Não foi possível carregar as notificações.")
 
-const planLimits: Record<string, { conversations: number; agents: number; automations: number }> = {
-  trial: { conversations: 200, agents: 1, automations: 2 },
-  profissional: { conversations: 5000, agents: 4, automations: 10 },
-  enterprise: { conversations: 50000, agents: 20, automations: 100 },
-}
+export const getActivities = (limit = 10) =>
+  listRows<Activity>("activities", toActivity, "Não foi possível carregar as atividades.", { limit })
 
-export async function getPlanUsage() {
+export async function getIntegrations(): Promise<QueryResult<Integration[]>> {
   const supabase = await createClient()
-  const company = await getCompany()
-  const plan = company?.plan ?? "trial"
-  const limits = planLimits[plan] ?? planLimits.trial
-
-  const [{ count: conversations }, { count: agents }, { count: automations }] = await Promise.all([
-    supabase.from("conversations").select("*", { count: "exact", head: true }),
-    supabase.from("ai_agents").select("*", { count: "exact", head: true }),
-    supabase.from("automations").select("*", { count: "exact", head: true }),
-  ])
-
-  return {
-    plan,
-    limits,
-    usage: {
-      conversations: conversations ?? 0,
-      agents: agents ?? 0,
-      automations: automations ?? 0,
-    },
-  }
+  const response = await supabase.from("integrations").select("*")
+  return toResult(response as { data: Row[] | null; error: { code?: string } | null }, (rows) => rows.map(toIntegration), [], "Não foi possível carregar as integrações.")
 }
 
-export async function getTeamMembers(): Promise<TeamMember[]> {
+export async function getTeamMembers(): Promise<QueryResult<TeamMember[]>> {
   const supabase = await createClient()
-  const { data: members } = await supabase
+  const { data: members, error } = await supabase
     .from("company_members")
-    .select("user_id, role, created_at")
+    .select("*")
     .order("created_at", { ascending: true })
 
-  if (!members || members.length === 0) return []
+  if (error) {
+    if (isMissingResource(error)) return { data: [], error: null, unavailable: true }
+    return { data: [], error: "Não foi possível carregar a equipe." }
+  }
+  if (!members || members.length === 0) return ok([])
 
   const { data: profiles } = await supabase
     .from("profiles")
@@ -337,14 +166,21 @@ export async function getTeamMembers(): Promise<TeamMember[]> {
       members.map((m) => m.user_id),
     )
 
-  return members.map((member) => {
-    const profile = profiles?.find((p) => p.id === member.user_id)
-    return {
-      user_id: member.user_id,
-      role: member.role,
-      created_at: member.created_at,
-      full_name: profile?.full_name ?? null,
-      email: profile?.email ?? null,
-    }
-  })
+  return ok(members.map((member) => toTeamMember(member as Row, profiles?.find((p) => p.id === member.user_id) as Row)))
+}
+
+/** Contagens reais de uso. Os limites do plano vêm do billing (ainda não conectado). */
+export async function getPlanUsage(): Promise<PlanUsage> {
+  const supabase = await createClient()
+  const count = async (table: string) => {
+    const { count: total } = await supabase.from(table).select("*", { count: "exact", head: true })
+    return total ?? 0
+  }
+  const [conversations, agents, automations, members] = await Promise.all([
+    count("conversations"),
+    count("ai_agents"),
+    count("automations"),
+    count("company_members"),
+  ])
+  return { conversations, agents, automations, members }
 }

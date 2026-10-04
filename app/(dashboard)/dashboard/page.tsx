@@ -1,44 +1,48 @@
-import { Bot, MessagesSquare, Users, Workflow } from "lucide-react"
-import { PageHeader } from "@/components/shared/page-header"
-import { StatCard } from "@/components/shared/stat-card"
-import { WeeklyActivityChart, type WeeklyActivityPoint } from "@/components/dashboard/weekly-activity-chart"
+import Link from "next/link"
+import { ArrowRight, Bot, MessagesSquare, Users, Workflow } from "lucide-react"
 import { FunnelChart, type FunnelPoint } from "@/components/dashboard/funnel-chart"
 import { RecentActivity } from "@/components/dashboard/recent-activity"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
-import { LeadStatusBadge } from "@/components/shared/status-badge"
-import Link from "next/link"
-import { ArrowRight } from "lucide-react"
+import { WeeklyActivityChart, type WeeklyActivityPoint } from "@/components/dashboard/weekly-activity-chart"
+import { PageHeader } from "@/components/shared/page-header"
+import { StatCard } from "@/components/shared/stat-card"
+import { StatusBadge } from "@/components/shared/status-badge"
+import { EmptyState } from "@/components/states/states"
 import { Button } from "@/components/ui/button"
-import { getLeads, getConversations, getAiAgents, getAutomations, getActivities } from "@/lib/data/queries"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { getActivities, getAgents, getAutomations, getConversations, getLeads } from "@/lib/data/queries"
+import { leadStatuses } from "@/lib/domain/catalogs"
+import { formatRelativeTime } from "@/lib/format"
 
-const FUNNEL_STAGES: { status: string; label: string }[] = [
-  { status: "novo", label: "Novo" },
-  { status: "contatado", label: "Contatado" },
-  { status: "qualificado", label: "Qualificado" },
-  { status: "demonstracao", label: "Demonstração" },
-  { status: "negociacao", label: "Em negociação" },
-  { status: "cliente", label: "Cliente" },
-]
-
+const FUNNEL_STAGES = ["novo", "contatado", "qualificado", "demonstracao", "negociacao", "cliente"] as const
 const WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
 
+function countInRange(items: { createdAt: string }[], start: Date, end: Date) {
+  return items.filter((item) => {
+    const created = new Date(item.createdAt)
+    return created >= start && created < end
+  }).length
+}
+
 export default async function DashboardPage() {
-  const [leads, conversations, aiAgents, automations, activities] = await Promise.all([
+  const [leadsResult, conversationsResult, agentsResult, automationsResult, activitiesResult] = await Promise.all([
     getLeads(),
     getConversations(),
-    getAiAgents(),
+    getAgents(),
     getAutomations(),
     getActivities(),
   ])
 
-  const recentLeads = leads.slice(0, 5)
-  const activeConversations = conversations.filter((c) => c.status !== "fechada").length
-  const activeAgents = aiAgents.filter((a) => a.status === "ativo").length
+  const leads = leadsResult.data
+  const conversations = conversationsResult.data
+  const agents = agentsResult.data
+  const automations = automationsResult.data
+
+  const activeConversations = conversations.filter((c) => c.status !== "resolvida").length
+  const activeAgents = agents.filter((a) => a.status === "ativo").length
   const runningAutomations = automations.filter((a) => a.status === "ativa").length
 
-  const funnelData: FunnelPoint[] = FUNNEL_STAGES.map(({ status, label }) => ({
-    etapa: label,
+  const funnelData: FunnelPoint[] = FUNNEL_STAGES.map((status) => ({
+    etapa: leadStatuses[status].label,
     valor: leads.filter((lead) => lead.status === status).length,
   })).filter((point) => point.valor > 0)
 
@@ -49,42 +53,29 @@ export default async function DashboardPage() {
     day.setHours(0, 0, 0, 0)
     const nextDay = new Date(day)
     nextDay.setDate(day.getDate() + 1)
-
-    const leadsCount = leads.filter((l) => {
-      const created = new Date(l.created_at)
-      return created >= day && created < nextDay
-    }).length
-    const conversationsCount = conversations.filter((c) => {
-      const created = new Date(c.created_at)
-      return created >= day && created < nextDay
-    }).length
-
     return {
       dia: WEEKDAY_LABELS[day.getDay()],
-      conversas: conversationsCount,
-      leads: leadsCount,
-      conversoes: 0,
+      conversas: countInRange(conversations, day, nextDay),
+      leads: countInRange(leads, day, nextDay),
+      conversoes: countInRange(
+        leads.filter((lead) => lead.status === "cliente"),
+        day,
+        nextDay,
+      ),
     }
   })
   const hasWeeklyActivity = weeklyData.some((d) => d.conversas > 0 || d.leads > 0)
+  const recentLeads = leads.slice(0, 5)
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Dashboard"
-        description="Visão geral do atendimento e das vendas da sua empresa"
-      />
+      <PageHeader title="Dashboard" description="Visão geral do atendimento e das vendas da sua empresa" />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Conversas ativas" value={String(activeConversations)} icon={MessagesSquare} />
+        <StatCard label="Conversas em aberto" value={String(activeConversations)} icon={MessagesSquare} />
         <StatCard label="Leads recebidos" value={String(leads.length)} icon={Users} />
-        <StatCard
-          label="Agentes de IA ativos"
-          value={String(activeAgents)}
-          trend={{ value: `de ${aiAgents.length} configurados`, direction: "up" }}
-          icon={Bot}
-        />
-        <StatCard label="Automações em execução" value={String(runningAutomations)} icon={Workflow} />
+        <StatCard label="Agentes de IA ativos" value={`${activeAgents} de ${agents.length}`} icon={Bot} />
+        <StatCard label="Automações ativas" value={`${runningAutomations} de ${automations.length}`} icon={Workflow} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -95,7 +86,7 @@ export default async function DashboardPage() {
       <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-4">
-            <div>
+            <div className="flex flex-col gap-1">
               <CardTitle>Leads recentes</CardTitle>
               <CardDescription>Os últimos leads recebidos pelos seus canais</CardDescription>
             </div>
@@ -106,35 +97,28 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent className="flex flex-col gap-1">
             {recentLeads.length === 0 ? (
-              <Empty>
-                <EmptyHeader>
-                  <EmptyMedia variant="icon">
-                    <Users />
-                  </EmptyMedia>
-                  <EmptyTitle>Nenhum lead ainda</EmptyTitle>
-                  <EmptyDescription>Os leads recebidos pelos seus canais aparecem aqui.</EmptyDescription>
-                </EmptyHeader>
-              </Empty>
+              <EmptyState
+                icon={Users}
+                title="Nenhum lead ainda"
+                description="Os leads recebidos aparecerão aqui."
+                className="border-0"
+              />
             ) : (
-              recentLeads.map((lead) => (
-                <div
-                  key={lead.id}
-                  className="flex items-center justify-between gap-4 rounded-lg px-2 py-2.5 transition-colors hover:bg-muted/60"
-                >
-                  <div className="flex flex-col gap-0.5">
-                    <p className="text-sm font-medium leading-none text-foreground">{lead.name}</p>
-                    <p className="text-sm text-muted-foreground">{lead.source || "Origem não informada"}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <LeadStatusBadge status={lead.status} />
-                  </div>
-                </div>
-              ))
+              <ul className="flex flex-col divide-y divide-border">
+                {recentLeads.map((lead) => (
+                  <li key={lead.id} className="flex items-center justify-between gap-4 py-3">
+                    <div className="flex min-w-0 flex-col">
+                      <span className="truncate text-sm font-medium text-foreground">{lead.name}</span>
+                      <span className="text-xs text-muted-foreground">{formatRelativeTime(lead.createdAt)}</span>
+                    </div>
+                    <StatusBadge kind="lead" status={lead.status} />
+                  </li>
+                ))}
+              </ul>
             )}
           </CardContent>
         </Card>
-
-        <RecentActivity activities={activities} />
+        <RecentActivity activities={activitiesResult.data} />
       </div>
     </div>
   )
