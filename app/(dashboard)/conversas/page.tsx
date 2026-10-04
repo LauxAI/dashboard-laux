@@ -1,6 +1,7 @@
 import { MessagesSquareIcon } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
-import { EmptyState, ErrorState } from "@/components/states/states"
+import { EmptyState } from "@/components/states/empty-state"
+import { ErrorState } from "@/components/states/states"
 import { Card } from "@/components/ui/card"
 import { getConversations } from "@/lib/data/queries"
 import { ConversasClient } from "./conversas-client"

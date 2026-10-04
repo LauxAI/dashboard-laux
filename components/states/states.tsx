@@ -7,8 +7,6 @@ import { Button } from "@/components/ui/button"
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { cn } from "@/lib/utils"
 
-export { EmptyState } from "@/components/states/empty-state"
-
 export function ErrorState({
   title = "Não foi possível carregar",
   description,
