@@ -1,40 +1,13 @@
 "use client"
 
-import type { ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import { useTransition } from "react"
-import type { LucideIcon } from "lucide-react"
-import { CircleAlert, Inbox, Lock, RefreshCw } from "lucide-react"
+import { CircleAlert, Lock, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { cn } from "@/lib/utils"
 
-export function EmptyState({
-  icon: Icon = Inbox,
-  title,
-  description,
-  action,
-  className,
-}: {
-  icon?: LucideIcon
-  title: string
-  description: string
-  action?: ReactNode
-  className?: string
-}) {
-  return (
-    <Empty className={cn("min-h-64", className)}>
-      <EmptyHeader>
-        <EmptyMedia variant="icon">
-          <Icon />
-        </EmptyMedia>
-        <EmptyTitle>{title}</EmptyTitle>
-        <EmptyDescription className="text-pretty">{description}</EmptyDescription>
-      </EmptyHeader>
-      {action && <EmptyContent>{action}</EmptyContent>}
-    </Empty>
-  )
-}
+export { EmptyState } from "@/components/states/empty-state"
 
 export function ErrorState({
   title = "Não foi possível carregar",
