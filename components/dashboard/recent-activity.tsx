@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Activity as ActivityIcon } from "lucide-react"
-import type { Activity } from "@/lib/data/queries"
+import type { Activity } from "@/lib/domain/types"
 import { formatRelativeTime } from "@/lib/format"
 
 export function RecentActivity({ activities = [] }: { activities?: Activity[] }) {
@@ -32,7 +32,7 @@ export function RecentActivity({ activities = [] }: { activities?: Activity[] })
                 <span aria-hidden="true" className="absolute left-0 top-1.5 size-1.5 rounded-full bg-primary" />
                 <div className="flex flex-col gap-0.5">
                   <p className="text-sm font-medium leading-none text-foreground">{item.description}</p>
-                  <p className="text-xs text-muted-foreground">{formatRelativeTime(item.created_at)}</p>
+                  <p className="text-xs text-muted-foreground">{formatRelativeTime(item.createdAt)}</p>
                 </div>
               </li>
             ))}

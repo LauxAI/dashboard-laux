@@ -1,66 +1,75 @@
-import { Button } from "@/components/ui/button"
-import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { PageHeader } from "@/components/shared/page-header"
-import { IntegrationStatusBadge } from "@/components/shared/status-badge"
+import { PendingActionButton } from "@/components/shared/pending-action-button"
+import { StatusBadge } from "@/components/shared/status-badge"
+import { ErrorState } from "@/components/states/states"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { getIntegrations } from "@/lib/data/queries"
-import { PlugIcon } from "lucide-react"
-
-const actionLabel: Record<string, string> = {
-  conectado: "Gerenciar",
-  nao_conectado: "Conectar",
-  nao_configurado: "Configurar",
-  configuracao_necessaria: "Configurar",
-  erro: "Corrigir",
-}
-
-const providerInfo: Record<string, { name: string; description: string }> = {
-  whatsapp: { name: "WhatsApp", description: "Receba e responda mensagens dos seus clientes no WhatsApp" },
-  instagram: { name: "Instagram", description: "Conecte sua conta para atender direct messages" },
-  google_calendar: { name: "Google Agenda", description: "Sincronize agendamentos automaticamente" },
-  n8n: { name: "n8n", description: "Conecte fluxos de automação externos" },
-  ia_provider: { name: "Provedor de IA", description: "Configure o modelo de IA usado pelos seus agentes" },
-  webhooks: { name: "Webhooks", description: "Envie eventos da sua operação para outros sistemas" },
-}
+import { integrationCatalog, integrationCategories } from "@/lib/domain/catalogs"
+import type { IntegrationCategory } from "@/lib/domain/types"
 
 export default async function IntegracoesPage() {
-  const integrations = await getIntegrations()
+  const { data: integrations, error } = await getIntegrations()
+  const statusByProvider = new Map(integrations.map((integration) => [integration.provider, integration.status]))
+  const categories = Object.keys(integrationCategories) as IntegrationCategory[]
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Integrações"
-        description="Conecte os canais e serviços que alimentam a operação da sua empresa"
-      />
+    <div className="flex flex-col gap-8">
+      <PageHeader title="Integrações" description="Conecte canais, ferramentas e provedores de IA à sua operação" />
+      {error && <ErrorState description={error} />}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {integrations.map((integration) => {
-          const info = providerInfo[integration.provider] ?? {
-            name: integration.provider,
-            description: "Integração disponível para sua operação",
-          }
-          return (
-            <Card key={integration.id}>
-              <CardHeader>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">
-                    <PlugIcon className="size-5" />
-                  </div>
-                  <IntegrationStatusBadge
-                    status={integration.status as "conectado" | "nao_conectado" | "configuracao_necessaria" | "erro"}
-                  />
-                </div>
-                <CardTitle className="pt-2 text-base">{info.name}</CardTitle>
-                <CardDescription>{info.description}</CardDescription>
-              </CardHeader>
-              <CardFooter>
-                <Button variant={integration.status === "conectado" ? "outline" : "default"} className="w-full">
-                  {actionLabel[integration.status] ?? "Configurar"}
-                </Button>
-              </CardFooter>
-            </Card>
-          )
-        })}
-      </div>
+      {categories.map((category) => {
+        const items = integrationCatalog.filter((item) => item.category === category)
+        if (items.length === 0) return null
+        return (
+          <section key={category} aria-labelledby={`cat-${category}`} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1">
+              <h2 id={`cat-${category}`} className="text-base font-semibold text-foreground">
+                {integrationCategories[category].label}
+              </h2>
+              <p className="text-sm text-muted-foreground">{integrationCategories[category].description}</p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {items.map((item) => {
+                const Icon = item.icon
+                const status = statusByProvider.get(item.provider) ?? "desconectado"
+                return (
+                  <Card key={item.provider} className="flex flex-col">
+                    <CardHeader className="flex flex-row items-start gap-3">
+                      <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-secondary text-foreground">
+                        <Icon className="size-5" aria-hidden="true" />
+                      </div>
+                      <div className="flex min-w-0 flex-col gap-1">
+                        <CardTitle className="text-base">{item.name}</CardTitle>
+                        <CardDescription className="text-pretty">{item.description}</CardDescription>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="flex-1" />
+                    <CardFooter className="flex items-center justify-between gap-2">
+                      {item.available ? (
+                        <StatusBadge kind="integration" status={status} />
+                      ) : (
+                        <Badge variant="secondary" className="font-normal">
+                          Em breve
+                        </Badge>
+                      )}
+                      {item.available && (
+                        <PendingActionButton
+                          action={`${status === "conectado" ? "Gerenciar" : "Conectar"} ${item.name}`}
+                          variant="outline"
+                          size="sm"
+                        >
+                          {status === "conectado" ? "Gerenciar" : "Conectar"}
+                        </PendingActionButton>
+                      )}
+                    </CardFooter>
+                  </Card>
+                )
+              })}
+            </div>
+          </section>
+        )
+      })}
     </div>
   )
 }

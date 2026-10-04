@@ -20,7 +20,7 @@ export function AuthShell({
       />
       <div className="relative z-10 flex w-full max-w-sm flex-col gap-8">
         <div className="flex flex-col items-center gap-6 text-center">
-          <LauxaiLogo />
+          <LauxaiLogo priority className="w-44" />
           <div className="flex flex-col gap-1.5">
             <h1 className="text-balance text-xl font-semibold tracking-tight text-foreground">{title}</h1>
             <p className="text-pretty text-sm text-muted-foreground">{description}</p>

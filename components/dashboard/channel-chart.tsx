@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { BarChart3 } from "lucide-react"
-import type { Lead } from "@/lib/data/queries"
+import type { Lead } from "@/lib/domain/types"
 
 const chartConfig: ChartConfig = {
   valor: { label: "Leads", color: "var(--chart-1)" },

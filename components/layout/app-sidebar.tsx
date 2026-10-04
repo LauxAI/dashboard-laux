@@ -17,7 +17,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar"
-import { LauxaiLogo } from "@/components/brand/logo"
+import { LauxaiLogo, LauxaiMark } from "@/components/brand/logo"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -59,17 +59,14 @@ export function AppSidebar({
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              size="lg"
-              render={<Link href="/dashboard" />}
-              className="data-active:bg-transparent"
-            >
-              <LauxaiLogo />
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <Link
+          href="/dashboard"
+          aria-label="LAUXAI CORE — ir para o Dashboard"
+          className="flex h-12 items-center rounded-md px-2 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+        >
+          <LauxaiLogo priority className="w-32 group-data-[collapsible=icon]:hidden" />
+          <LauxaiMark className="hidden w-6 group-data-[collapsible=icon]:block" />
+        </Link>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
@@ -141,9 +138,9 @@ export function AppSidebar({
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
-                  <DropdownMenuItem onClick={() => router.push("/empresa")}>
+                  <DropdownMenuItem onClick={() => router.push("/configuracoes")}>
                     <User />
-                    Meu perfil
+                    Minha conta
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => router.push("/configuracoes")}>
                     <Settings />

@@ -25,13 +25,9 @@ function getInitials(name: string) {
   return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
 }
 
-type HeaderNotification = {
-  id: string
-  title: string
-  message: string | null
-  read: boolean
-  created_at: string
-}
+type HeaderNotification = Pick<Notification, "id" | "title" | "message" | "read">
+
+import type { Notification } from "@/lib/domain/types"
 
 export function AppHeader({
   user,
@@ -120,7 +116,7 @@ export function AppHeader({
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem onClick={() => router.push("/empresa")}>
+              <DropdownMenuItem onClick={() => router.push("/configuracoes")}>
                 <User />
                 Minha conta
               </DropdownMenuItem>

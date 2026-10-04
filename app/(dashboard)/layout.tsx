@@ -29,7 +29,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     <SidebarProvider>
       <AppSidebar companyName={company?.name ?? "Minha Empresa"} userName={user.name} userEmail={user.email} />
       <SidebarInset>
-        <AppHeader user={user} notifications={notifications} />
+        <AppHeader user={user} notifications={notifications.data} />
         <main className="flex flex-1 flex-col gap-6 p-4 md:p-6">{children}</main>
       </SidebarInset>
     </SidebarProvider>

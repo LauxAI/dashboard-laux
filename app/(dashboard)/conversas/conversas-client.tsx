@@ -8,7 +8,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupButton } from "
 import { Badge } from "@/components/ui/badge"
 import { formatDateTimeBRL, formatRelativeTime } from "@/lib/format"
 import { cn } from "@/lib/utils"
-import type { Conversation, Message } from "@/lib/data/queries"
+import type { Conversation, Message } from "@/lib/domain/types"
 import { MessagesSquareIcon, SendIcon } from "lucide-react"
 import { sendMessage } from "./actions"
 
@@ -53,19 +53,19 @@ function ConversationListItem({
       )}
     >
       <Avatar>
-        <AvatarFallback>{initials(conversation.contact_name)}</AvatarFallback>
+        <AvatarFallback>{initials(conversation.contactName)}</AvatarFallback>
       </Avatar>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center justify-between gap-2">
-          <span className="truncate text-sm font-medium text-foreground">{conversation.contact_name}</span>
-          <span className="shrink-0 text-xs text-muted-foreground">{formatRelativeTime(conversation.updated_at)}</span>
+          <span className="truncate text-sm font-medium text-foreground">{conversation.contactName}</span>
+          <span className="shrink-0 text-xs text-muted-foreground">{formatRelativeTime(conversation.updatedAt)}</span>
         </div>
-        <p className="truncate text-xs text-muted-foreground">{conversation.last_message ?? "Sem mensagens"}</p>
+        <p className="truncate text-xs text-muted-foreground">{conversation.lastMessage ?? "Sem mensagens"}</p>
         <span className="text-[11px] capitalize text-muted-foreground">{conversation.channel}</span>
       </div>
-      {conversation.unread_count > 0 && (
+      {conversation.unreadCount > 0 && (
         <span className="mt-1 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-medium text-primary-foreground">
-          {conversation.unread_count}
+          {conversation.unreadCount}
         </span>
       )}
     </button>
@@ -114,10 +114,10 @@ export function ConversasClient({ conversations }: { conversations: Conversation
             <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3.5">
               <div className="flex items-center gap-3">
                 <Avatar>
-                  <AvatarFallback>{initials(active.contact_name)}</AvatarFallback>
+                  <AvatarFallback>{initials(active.contactName)}</AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col">
-                  <span className="text-sm font-medium text-foreground">{active.contact_name}</span>
+                  <span className="text-sm font-medium text-foreground">{active.contactName}</span>
                   <span className="text-xs capitalize text-muted-foreground">{active.channel}</span>
                 </div>
               </div>
@@ -146,7 +146,7 @@ export function ConversasClient({ conversations }: { conversations: Conversation
                           )}
                         >
                           {message.sender === "ia" ? "Agente IA · " : null}
-                          {formatDateTimeBRL(message.created_at)}
+                          {formatDateTimeBRL(message.createdAt)}
                         </span>
                       </div>
                     </div>
