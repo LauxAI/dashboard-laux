@@ -33,6 +33,9 @@ import {
   Zap,
 } from "lucide-react"
 import type {
+  SchedulingAgentBehavior,
+  SchedulingTone,
+  WeekdayKey,
   AgentTone,
   AutomationActionType,
   AutomationConditionField,
@@ -352,6 +355,99 @@ export const weekDays: Option<string>[] = [
   { value: "5", label: "Sex" },
   { value: "6", label: "Sáb" },
   { value: "0", label: "Dom" },
+]
+
+/* --------------------------- Agente de Agendamento -------------------------- */
+
+export const schedulingTones: Option<SchedulingTone>[] = [
+  { value: "profissional", label: "Profissional" },
+  { value: "amigavel", label: "Amigável" },
+  { value: "direto", label: "Direto" },
+  { value: "personalizado", label: "Personalizado" },
+]
+
+export const schedulingBehaviorOptions: {
+  key: keyof SchedulingAgentBehavior
+  label: string
+  description: string
+  group: "agenda" | "dados"
+}[] = [
+  {
+    key: "offerAvailableSlots",
+    label: "Oferecer horários disponíveis",
+    description: "O agente sugere horários livres com base no horário de funcionamento e nos serviços.",
+    group: "agenda",
+  },
+  {
+    key: "allowConfirmation",
+    label: "Confirmar agendamentos",
+    description: "O agente pode confirmar o horário escolhido diretamente com o cliente.",
+    group: "agenda",
+  },
+  {
+    key: "allowCancellation",
+    label: "Permitir cancelamento",
+    description: "O cliente pode cancelar um agendamento existente pela conversa.",
+    group: "agenda",
+  },
+  {
+    key: "allowRescheduling",
+    label: "Permitir reagendamento",
+    description: "O cliente pode mover um agendamento para outro horário disponível.",
+    group: "agenda",
+  },
+  { key: "askName", label: "Solicitar nome", description: "Pedir o nome completo antes de agendar.", group: "dados" },
+  { key: "askPhone", label: "Solicitar telefone", description: "Pedir um telefone de contato.", group: "dados" },
+  { key: "askEmail", label: "Solicitar e-mail", description: "Pedir um e-mail para enviar a confirmação.", group: "dados" },
+]
+
+export const businessWeekdays: { key: WeekdayKey; label: string; short: string }[] = [
+  { key: "segunda", label: "Segunda-feira", short: "Seg" },
+  { key: "terca", label: "Terça-feira", short: "Ter" },
+  { key: "quarta", label: "Quarta-feira", short: "Qua" },
+  { key: "quinta", label: "Quinta-feira", short: "Qui" },
+  { key: "sexta", label: "Sexta-feira", short: "Sex" },
+  { key: "sabado", label: "Sábado", short: "Sáb" },
+  { key: "domingo", label: "Domingo", short: "Dom" },
+]
+
+export const appointmentBufferOptions: Option<string>[] = [
+  { value: "0", label: "Sem intervalo" },
+  { value: "5", label: "5 minutos" },
+  { value: "10", label: "10 minutos" },
+  { value: "15", label: "15 minutos" },
+  { value: "30", label: "30 minutos" },
+  { value: "60", label: "60 minutos" },
+]
+
+export const serviceDurationOptions: Option<string>[] = [
+  { value: "15", label: "15 min" },
+  { value: "30", label: "30 min" },
+  { value: "45", label: "45 min" },
+  { value: "60", label: "1 h" },
+  { value: "90", label: "1 h 30 min" },
+  { value: "120", label: "2 h" },
+]
+
+export const upcomingAgents: { key: string; name: string; description: string; icon: LucideIcon }[] = [
+  {
+    key: "atendimento",
+    name: "Agente de Atendimento",
+    description: "Responde dúvidas frequentes e direciona o cliente para a equipe certa.",
+    icon: MessagesSquare,
+  },
+  {
+    key: "vendas",
+    name: "Agente de Vendas",
+    description: "Qualifica leads e conduz o contato até a proposta.",
+    icon: Zap,
+  },
+  {
+    key: "suporte",
+    name: "Agente de Suporte",
+    description: "Resolve solicitações de suporte e abre chamados quando necessário.",
+    icon: UserRoundCog,
+  },
 ]
 
 /* ------------------------------- Integrações ------------------------------- */

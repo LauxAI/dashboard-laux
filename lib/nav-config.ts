@@ -29,7 +29,7 @@ export const operationNav: NavItem[] = [
   { title: "Leads", href: "/leads", icon: Users },
   { title: "Clientes", href: "/clientes", icon: Contact },
   { title: "Automações", href: "/automacoes", icon: Workflow },
-  { title: "Agentes IA", href: "/agentes", icon: Bot },
+  { title: "Agentes de IA", href: "/agentes", icon: Bot },
   { title: "Agenda", href: "/agenda", icon: CalendarDays },
   { title: "Analytics", href: "/analytics", icon: BarChart3 },
   { title: "Integrações", href: "/integracoes", icon: Plug },

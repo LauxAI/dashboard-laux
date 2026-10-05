@@ -224,6 +224,65 @@ export interface Appointment {
   createdAt: ISODateString
 }
 
+/* ---------------------------------------------------------------------------
+ * Agente de Agendamento e disponibilidade da agenda.
+ *
+ * Ainda sem tabelas no Supabase: as telas usam estes contratos em estado local.
+ * Quando a persistência existir, a camada `lib/data` deverá ler/gravar estas
+ * entidades (sempre escopadas por `company_id` via RLS), e o agente de IA
+ * consumirá a mesma configuração por uma rota server-side (Dashboard → API →
+ * Gemini → Agenda/Supabase). Nenhuma chave de IA trafega pelo navegador.
+ * ------------------------------------------------------------------------- */
+
+export type SchedulingTone = "profissional" | "amigavel" | "direto" | "personalizado"
+
+export interface SchedulingAgentBehavior {
+  offerAvailableSlots: boolean
+  allowConfirmation: boolean
+  allowCancellation: boolean
+  allowRescheduling: boolean
+  askName: boolean
+  askPhone: boolean
+  askEmail: boolean
+}
+
+export interface SchedulingAgentConfig {
+  name: string
+  description: string
+  greeting: string
+  tone: SchedulingTone
+  customTone: string
+  behavior: SchedulingAgentBehavior
+}
+
+export type WeekdayKey = "segunda" | "terca" | "quarta" | "quinta" | "sexta" | "sabado" | "domingo"
+
+export interface BusinessHoursDay {
+  day: WeekdayKey
+  enabled: boolean
+  /** "HH:mm" ou vazio quando ainda não configurado. */
+  start: string
+  end: string
+}
+
+export type AppointmentBufferMinutes = 0 | 5 | 10 | 15 | 30 | 60
+
+export interface BookableService {
+  id: ID
+  name: string
+  description: string | null
+  durationMinutes: number
+  price: number | null
+  active: boolean
+}
+
+export interface BlockedDate {
+  id: ID
+  /** "YYYY-MM-DD" */
+  date: string
+  reason: string | null
+}
+
 export type NotificationCategory = "sistema" | "automacoes" | "integracoes" | "equipe" | "seguranca"
 
 export interface Notification {
