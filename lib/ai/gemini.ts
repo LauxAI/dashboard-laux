@@ -1,0 +1,74 @@
+import "server-only"
+
+export const GEMINI_MODEL = "gemini-2.5-flash-lite"
+
+const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
+const REQUEST_TIMEOUT_MS = 30_000
+
+export class GeminiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message)
+    this.name = "GeminiError"
+  }
+}
+
+interface GeminiResponse {
+  candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[]
+  promptFeedback?: { blockReason?: string }
+  error?: { message?: string }
+}
+
+export async function generateGeminiReply(message: string): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY
+  if (!apiKey) {
+    throw new GeminiError("A variável de ambiente GEMINI_API_KEY não está configurada no servidor.", 500)
+  }
+
+  let response: Response
+  try {
+    response = await fetch(GEMINI_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: message }] }] }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      cache: "no-store",
+    })
+  } catch (error) {
+    const timedOut = error instanceof DOMException && error.name === "TimeoutError"
+    throw new GeminiError(
+      timedOut ? "O Gemini demorou demais para responder. Tente novamente." : "Não foi possível conectar ao Gemini.",
+      502,
+    )
+  }
+
+  const data = (await response.json().catch(() => ({}))) as GeminiResponse
+
+  if (!response.ok) {
+    console.error("[ai/gemini] Gemini API error", response.status, data.error?.message)
+    const message =
+      response.status === 400 || response.status === 403
+        ? "O Gemini recusou a requisição. Verifique se a GEMINI_API_KEY é válida."
+        : response.status === 429
+          ? "Limite de uso do Gemini atingido. Aguarde um momento e tente novamente."
+          : "O Gemini retornou um erro inesperado."
+    throw new GeminiError(message, 502)
+  }
+
+  if (data.promptFeedback?.blockReason) {
+    throw new GeminiError("A mensagem foi bloqueada pelos filtros de segurança do Gemini.", 422)
+  }
+
+  const text = data.candidates?.[0]?.content?.parts
+    ?.map((part) => part.text ?? "")
+    .join("")
+    .trim()
+
+  if (!text) {
+    throw new GeminiError("O Gemini não retornou nenhum texto.", 502)
+  }
+
+  return text
+}
