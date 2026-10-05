@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server"
-import { buildSchedulingSystemPrompt, parseSchedulingAgentConfig } from "@/lib/ai/agents/scheduling-agent"
+import {
+  buildSchedulingSystemPrompt,
+  connectedSchedulingTools,
+  parseSchedulingAgentConfig,
+  schedulingAgentResponseSchema,
+} from "@/lib/ai/agents/scheduling-agent"
+import { parseConversationState, resolveAgentTurn } from "@/lib/ai/agents/scheduling-conversation"
 import { GEMINI_MODEL, GeminiError, generateGeminiChat, type GeminiChatMessage } from "@/lib/ai/gemini"
 import { createClient } from "@/lib/supabase/server"
 
@@ -36,21 +42,40 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Não autenticado." }, { status: 401 })
   }
 
-  const body = (await request.json().catch(() => null)) as { messages?: unknown; config?: unknown } | null
+  const body = (await request.json().catch(() => null)) as
+    | { messages?: unknown; config?: unknown; state?: unknown }
+    | null
   const messages = parseMessages(body?.messages)
   if (typeof messages === "string") {
     return NextResponse.json({ error: messages }, { status: 400 })
   }
 
   const config = parseSchedulingAgentConfig(body?.config)
+  const previous = parseConversationState(body?.state)
 
   try {
-    const reply = await generateGeminiChat({
+    const raw = await generateGeminiChat({
       messages,
-      systemInstruction: buildSchedulingSystemPrompt(config),
-      temperature: 0.4,
+      systemInstruction: buildSchedulingSystemPrompt(config, previous),
+      temperature: 0.2,
+      responseSchema: schedulingAgentResponseSchema,
     })
-    return NextResponse.json({ reply, model: GEMINI_MODEL })
+
+    const turn = resolveAgentTurn({
+      raw,
+      previous,
+      behavior: config.behavior,
+      userText: messages
+        .filter((message) => message.role === "user")
+        .map((message) => message.text)
+        .join("\n"),
+      connectedTools: connectedSchedulingTools,
+    })
+    if (!turn.structured) {
+      console.warn("[api/agents/scheduling/chat] Invalid structured output; no action applied")
+    }
+
+    return NextResponse.json({ ...turn, model: GEMINI_MODEL })
   } catch (error) {
     if (error instanceof GeminiError) {
       return NextResponse.json({ error: error.message }, { status: error.status })

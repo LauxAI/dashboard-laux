@@ -12,6 +12,13 @@ import { SectionCard } from "@/components/shared/section-card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { ConversationStatePanel } from "@/components/agents/conversation-state-panel";
+import {
+  createEmptyConversationState,
+  type SchedulingAgentTurn,
+  type SchedulingConversationState,
+  type SchedulingNextAction,
+} from "@/lib/ai/agents/scheduling-conversation";
 import type { SchedulingAgentConfig } from "@/lib/domain/types";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +39,12 @@ export function SchedulingAgentChat({
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [conversation, setConversation] = useState<SchedulingConversationState>(
+    createEmptyConversationState,
+  );
+  const [nextAction, setNextAction] = useState<SchedulingNextAction | null>(
+    null,
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const agentName = config.name.trim() || "Agente de Agendamento";
@@ -63,16 +76,16 @@ export function SchedulingAgentChat({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           config,
+          state: conversation,
           messages: history.map(({ role, text: messageText }) => ({
             role,
             text: messageText,
           })),
         }),
       });
-      const data = (await response.json().catch(() => ({}))) as {
-        reply?: string;
-        error?: string;
-      };
+      const data = (await response.json().catch(() => ({}))) as Partial<
+        SchedulingAgentTurn & { error: string }
+      >;
       if (!response.ok || !data.reply) {
         setError(
           data.error ?? "Não foi possível obter uma resposta do agente.",
@@ -85,6 +98,8 @@ export function SchedulingAgentChat({
         ...history,
         { id: crypto.randomUUID(), role: "model", text: data.reply },
       ]);
+      if (data.state) setConversation(data.state);
+      if (data.nextAction) setNextAction(data.nextAction);
     } catch {
       setError(
         "Falha de conexão com o servidor. Verifique sua internet e tente novamente.",
@@ -113,6 +128,8 @@ export function SchedulingAgentChat({
     setMessages([]);
     setDraft("");
     setError(null);
+    setConversation(createEmptyConversationState());
+    setNextAction(null);
   }
 
   return (
@@ -156,6 +173,12 @@ export function SchedulingAgentChat({
           </div>
         )}
       </div>
+
+      <ConversationStatePanel
+        state={conversation}
+        nextAction={nextAction}
+        behavior={config.behavior}
+      />
 
       <p className="text-xs leading-relaxed text-muted-foreground">
         A agenda ainda não está conectada: o agente não consulta horários reais

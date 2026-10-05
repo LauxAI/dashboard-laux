@@ -32,6 +32,8 @@ export interface GeminiChatOptions {
   messages: GeminiChatMessage[]
   systemInstruction?: string
   temperature?: number
+  /** Quando informado, o Gemini responde apenas JSON que segue este schema (formato OpenAPI do Gemini). */
+  responseSchema?: Record<string, unknown>
 }
 
 export async function generateGeminiReply(message: string): Promise<string> {
@@ -42,16 +44,22 @@ export async function generateGeminiChat({
   messages,
   systemInstruction,
   temperature,
+  responseSchema,
 }: GeminiChatOptions): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) {
     throw new GeminiError("A variável de ambiente GEMINI_API_KEY não está configurada no servidor.", 500)
   }
 
+  const generationConfig = {
+    ...(temperature !== undefined ? { temperature } : {}),
+    ...(responseSchema ? { responseMimeType: "application/json", responseSchema } : {}),
+  }
+
   const payload = {
     contents: messages.map((message) => ({ role: message.role, parts: [{ text: message.text }] })),
     ...(systemInstruction ? { systemInstruction: { parts: [{ text: systemInstruction }] } } : {}),
-    ...(temperature !== undefined ? { generationConfig: { temperature } } : {}),
+    ...(Object.keys(generationConfig).length ? { generationConfig } : {}),
   }
 
   let response: Response
