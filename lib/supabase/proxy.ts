@@ -1,6 +1,12 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
-import { getAccountAccess, INACTIVE_ACCOUNT_MESSAGE, INACTIVE_ACCOUNT_REASON } from "./account-access"
+import {
+  ADMIN_ACCOUNT_MESSAGE,
+  ADMIN_ACCOUNT_REASON,
+  getAccountAccess,
+  INACTIVE_ACCOUNT_MESSAGE,
+  INACTIVE_ACCOUNT_REASON,
+} from "./account-access"
 
 function redirectTo(request: NextRequest, pathname: string, search: Record<string, string> = {}) {
   const url = request.nextUrl.clone()
@@ -81,6 +87,14 @@ export async function updateSession(request: NextRequest) {
           : redirectTo(request, "/login", { motivo: INACTIVE_ACCOUNT_REASON })
       supabaseResponse.cookies.getAll().forEach((cookie) => response.cookies.set(cookie))
       return response
+    }
+
+    if (access.status === "admin" && !isPublicPath) {
+      // Admins authenticate in the separate admin dashboard: keep them out of
+      // the client dashboard without revoking their session.
+      return isApi
+        ? NextResponse.json({ error: ADMIN_ACCOUNT_MESSAGE }, { status: 403 })
+        : redirectTo(request, "/login", { motivo: ADMIN_ACCOUNT_REASON })
     }
 
     if (access.status === "error" && !isPublicPath) {

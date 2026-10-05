@@ -4,7 +4,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/layout/app-sidebar"
 import { AppHeader } from "@/components/layout/app-header"
 import { createClient } from "@/lib/supabase/server"
-import { getAccountAccess, INACTIVE_ACCOUNT_REASON } from "@/lib/supabase/account-access"
+import { ADMIN_ACCOUNT_REASON, getAccountAccess, INACTIVE_ACCOUNT_REASON } from "@/lib/supabase/account-access"
 import { getCompany, getNotifications } from "@/lib/data/queries"
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
@@ -19,7 +19,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   // protected page may render without an active client account.
   const access = await getAccountAccess(supabase)
   if (access.status !== "active") {
-    redirect(`/login?motivo=${INACTIVE_ACCOUNT_REASON}`)
+    redirect(`/login?motivo=${access.status === "admin" ? ADMIN_ACCOUNT_REASON : INACTIVE_ACCOUNT_REASON}`)
   }
 
   const [company, { data: profile }, notifications] = await Promise.all([
