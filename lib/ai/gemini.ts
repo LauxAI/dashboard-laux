@@ -21,10 +21,37 @@ interface GeminiResponse {
   error?: { message?: string }
 }
 
+export type GeminiRole = "user" | "model"
+
+export interface GeminiChatMessage {
+  role: GeminiRole
+  text: string
+}
+
+export interface GeminiChatOptions {
+  messages: GeminiChatMessage[]
+  systemInstruction?: string
+  temperature?: number
+}
+
 export async function generateGeminiReply(message: string): Promise<string> {
+  return generateGeminiChat({ messages: [{ role: "user", text: message }] })
+}
+
+export async function generateGeminiChat({
+  messages,
+  systemInstruction,
+  temperature,
+}: GeminiChatOptions): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) {
     throw new GeminiError("A variável de ambiente GEMINI_API_KEY não está configurada no servidor.", 500)
+  }
+
+  const payload = {
+    contents: messages.map((message) => ({ role: message.role, parts: [{ text: message.text }] })),
+    ...(systemInstruction ? { systemInstruction: { parts: [{ text: systemInstruction }] } } : {}),
+    ...(temperature !== undefined ? { generationConfig: { temperature } } : {}),
   }
 
   let response: Response
@@ -32,7 +59,7 @@ export async function generateGeminiReply(message: string): Promise<string> {
     response = await fetch(GEMINI_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: message }] }] }),
+      body: JSON.stringify(payload),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       cache: "no-store",
     })
