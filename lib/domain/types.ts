@@ -210,7 +210,7 @@ export interface AIAgent {
   createdAt: ISODateString
 }
 
-export type AppointmentStatus = "confirmado" | "pendente" | "cancelado" | "concluido"
+export type AppointmentStatus = "agendado" | "confirmado" | "pendente" | "cancelado" | "concluido"
 
 export interface Appointment {
   id: ID
@@ -227,11 +227,10 @@ export interface Appointment {
 /* ---------------------------------------------------------------------------
  * Agente de Agendamento e disponibilidade da agenda.
  *
- * Ainda sem tabelas no Supabase: as telas usam estes contratos em estado local.
- * Quando a persistência existir, a camada `lib/data` deverá ler/gravar estas
- * entidades (sempre escopadas por `company_id` via RLS), e o agente de IA
- * consumirá a mesma configuração por uma rota server-side (Dashboard → API →
- * Gemini → Agenda/Supabase). Nenhuma chave de IA trafega pelo navegador.
+ * Persistidos em `scheduling_services`, `business_hours`, `blocked_dates` e
+ * `scheduling_settings` (RLS por `company_id`). O agente de IA lê e grava a
+ * Agenda apenas pelo servidor (Dashboard → API → Gemini → ferramentas →
+ * Supabase). Nenhuma chave de IA trafega pelo navegador.
  * ------------------------------------------------------------------------- */
 
 export type SchedulingTone = "profissional" | "amigavel" | "direto" | "personalizado"
@@ -265,14 +264,18 @@ export interface BusinessHoursDay {
   end: string
 }
 
-export type AppointmentBufferMinutes = 0 | 5 | 10 | 15 | 30 | 60
+export interface AgendaSettings {
+  /** Fuso IANA usado para interpretar horários de funcionamento e agendamentos. */
+  timezone: string
+  slotIntervalMinutes: number
+  minNoticeMinutes: number
+}
 
 export interface BookableService {
   id: ID
   name: string
   description: string | null
   durationMinutes: number
-  price: number | null
   active: boolean
 }
 
@@ -281,6 +284,13 @@ export interface BlockedDate {
   /** "YYYY-MM-DD" */
   date: string
   reason: string | null
+}
+
+export interface AvailabilityConfig {
+  hours: BusinessHoursDay[]
+  services: BookableService[]
+  blockedDates: BlockedDate[]
+  settings: AgendaSettings
 }
 
 export type NotificationCategory = "sistema" | "automacoes" | "integracoes" | "equipe" | "seguranca"

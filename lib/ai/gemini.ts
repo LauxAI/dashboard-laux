@@ -16,7 +16,7 @@ export class GeminiError extends Error {
 }
 
 interface GeminiResponse {
-  candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[]
+  candidates?: { content?: { parts?: GeminiPart[] }; finishReason?: string }[]
   promptFeedback?: { blockReason?: string }
   error?: { message?: string }
 }
@@ -46,20 +46,118 @@ export async function generateGeminiChat({
   temperature,
   responseSchema,
 }: GeminiChatOptions): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey) {
-    throw new GeminiError("A variável de ambiente GEMINI_API_KEY não está configurada no servidor.", 500)
-  }
-
   const generationConfig = {
     ...(temperature !== undefined ? { temperature } : {}),
     ...(responseSchema ? { responseMimeType: "application/json", responseSchema } : {}),
   }
 
-  const payload = {
+  const data = await callGemini({
     contents: messages.map((message) => ({ role: message.role, parts: [{ text: message.text }] })),
     ...(systemInstruction ? { systemInstruction: { parts: [{ text: systemInstruction }] } } : {}),
     ...(Object.keys(generationConfig).length ? { generationConfig } : {}),
+  })
+
+  const text = extractText(data.candidates?.[0]?.content?.parts)
+  if (!text) {
+    throw new GeminiError("O Gemini não retornou nenhum texto.", 502)
+  }
+  return text
+}
+
+export interface GeminiFunctionDeclaration {
+  name: string
+  description: string
+  parameters: Record<string, unknown>
+}
+
+export interface GeminiToolCall {
+  name: string
+  args: unknown
+}
+
+export interface GeminiToolChatOptions {
+  messages: GeminiChatMessage[]
+  systemInstruction?: string
+  temperature?: number
+  functions: GeminiFunctionDeclaration[]
+  /** Executa a função no servidor; o retorno é enviado de volta ao modelo. */
+  executeFunction: (call: GeminiToolCall) => Promise<Record<string, unknown>>
+  maxSteps?: number
+}
+
+/**
+ * Conversa com function calling: o modelo pede funções, o servidor executa e
+ * devolve os resultados, até o modelo responder em texto. As partes do modelo
+ * são reenviadas intactas (incluindo `thoughtSignature`, exigida pelo Gemini 3).
+ */
+export async function generateGeminiWithTools({
+  messages,
+  systemInstruction,
+  temperature,
+  functions,
+  executeFunction,
+  maxSteps = 6,
+}: GeminiToolChatOptions): Promise<string> {
+  const contents: GeminiContent[] = messages.map((message) => ({
+    role: message.role,
+    parts: [{ text: message.text }],
+  }))
+
+  for (let step = 0; step < maxSteps; step++) {
+    const data = await callGemini({
+      contents,
+      ...(systemInstruction ? { systemInstruction: { parts: [{ text: systemInstruction }] } } : {}),
+      ...(functions.length ? { tools: [{ functionDeclarations: functions }] } : {}),
+      ...(temperature !== undefined ? { generationConfig: { temperature } } : {}),
+    })
+
+    const parts = data.candidates?.[0]?.content?.parts ?? []
+    const calls = parts.filter((part) => part.functionCall?.name)
+
+    if (calls.length === 0) {
+      const text = extractText(parts)
+      if (!text) throw new GeminiError("O Gemini não retornou nenhum texto.", 502)
+      return text
+    }
+
+    contents.push({ role: "model", parts })
+    const responses: GeminiPart[] = []
+    for (const part of calls) {
+      const call = part.functionCall!
+      const response = await executeFunction({ name: call.name!, args: call.args ?? {} })
+      responses.push({ functionResponse: { name: call.name, response } })
+    }
+    contents.push({ role: "user", parts: responses })
+  }
+
+  throw new GeminiError("O agente excedeu o limite de consultas à agenda nesta mensagem.", 502)
+}
+
+interface GeminiPart {
+  text?: string
+  thought?: boolean
+  functionCall?: { name?: string; args?: unknown }
+  functionResponse?: { name?: string; response: Record<string, unknown> }
+  [key: string]: unknown
+}
+
+interface GeminiContent {
+  role: GeminiRole
+  parts: GeminiPart[]
+}
+
+function extractText(parts: GeminiPart[] | undefined): string {
+  return (parts ?? [])
+    .filter((part) => !part.thought)
+    .map((part) => part.text ?? "")
+    .join("")
+    .trim()
+}
+
+async function callGemini(payload: Record<string, unknown>): Promise<GeminiResponse> {
+  const apiKey = process.env.GEMINI_API_KEY
+  if (!apiKey) {
+    throw new GeminiError("A variável de ambiente GEMINI_API_KEY não está configurada no servidor.", 500)
   }
 
   let response: Response
@@ -96,14 +194,5 @@ export async function generateGeminiChat({
     throw new GeminiError("A mensagem foi bloqueada pelos filtros de segurança do Gemini.", 422)
   }
 
-  const text = data.candidates?.[0]?.content?.parts
-    ?.map((part) => part.text ?? "")
-    .join("")
-    .trim()
-
-  if (!text) {
-    throw new GeminiError("O Gemini não retornou nenhum texto.", 502)
-  }
-
-  return text
+  return data
 }

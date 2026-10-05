@@ -411,13 +411,36 @@ export const businessWeekdays: { key: WeekdayKey; label: string; short: string }
   { key: "domingo", label: "Domingo", short: "Dom" },
 ]
 
-export const appointmentBufferOptions: Option<string>[] = [
-  { value: "0", label: "Sem intervalo" },
-  { value: "5", label: "5 minutos" },
-  { value: "10", label: "10 minutos" },
-  { value: "15", label: "15 minutos" },
+export const slotIntervalOptions: Option<string>[] = [
+  { value: "10", label: "A cada 10 minutos" },
+  { value: "15", label: "A cada 15 minutos" },
+  { value: "20", label: "A cada 20 minutos" },
+  { value: "30", label: "A cada 30 minutos" },
+  { value: "45", label: "A cada 45 minutos" },
+  { value: "60", label: "A cada 1 hora" },
+]
+
+export const minNoticeOptions: Option<string>[] = [
+  { value: "0", label: "Sem antecedência" },
   { value: "30", label: "30 minutos" },
-  { value: "60", label: "60 minutos" },
+  { value: "60", label: "1 hora" },
+  { value: "120", label: "2 horas" },
+  { value: "240", label: "4 horas" },
+  { value: "720", label: "12 horas" },
+  { value: "1440", label: "1 dia" },
+  { value: "2880", label: "2 dias" },
+]
+
+export const agendaTimezoneOptions: Option<string>[] = [
+  { value: "America/Sao_Paulo", label: "Brasília (America/Sao_Paulo)" },
+  { value: "America/Manaus", label: "Amazonas (America/Manaus)" },
+  { value: "America/Cuiaba", label: "Mato Grosso (America/Cuiaba)" },
+  { value: "America/Porto_Velho", label: "Rondônia (America/Porto_Velho)" },
+  { value: "America/Rio_Branco", label: "Acre (America/Rio_Branco)" },
+  { value: "America/Fortaleza", label: "Fortaleza (America/Fortaleza)" },
+  { value: "America/Recife", label: "Recife (America/Recife)" },
+  { value: "America/Belem", label: "Belém (America/Belem)" },
+  { value: "America/Noronha", label: "Fernando de Noronha (America/Noronha)" },
 ]
 
 export const serviceDurationOptions: Option<string>[] = [

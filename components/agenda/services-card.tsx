@@ -21,11 +21,10 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { serviceDurationOptions } from "@/lib/domain/catalogs"
 import type { BookableService } from "@/lib/domain/types"
-import { formatCurrencyBRL } from "@/lib/format"
 
-type Draft = { name: string; description: string; durationMinutes: string; price: string; active: boolean }
+type Draft = { name: string; description: string; durationMinutes: string; active: boolean }
 
-const emptyDraft: Draft = { name: "", description: "", durationMinutes: "30", price: "", active: true }
+const emptyDraft: Draft = { name: "", description: "", durationMinutes: "30", active: true }
 
 function durationLabel(minutes: number) {
   return serviceDurationOptions.find((option) => Number(option.value) === minutes)?.label ?? `${minutes} min`
@@ -54,7 +53,6 @@ export function ServicesCard({
       name: service.name,
       description: service.description ?? "",
       durationMinutes: String(service.durationMinutes),
-      price: service.price === null ? "" : String(service.price),
       active: service.active,
     })
     setOpen(true)
@@ -64,13 +62,11 @@ export function ServicesCard({
     event.preventDefault()
     const name = draft.name.trim()
     if (!name) return
-    const parsedPrice = draft.price.trim() === "" ? null : Number(draft.price.replace(",", "."))
     const service: BookableService = {
       id: editingId ?? crypto.randomUUID(),
       name,
       description: draft.description.trim() || null,
       durationMinutes: Number(draft.durationMinutes) || 30,
-      price: parsedPrice !== null && Number.isFinite(parsedPrice) && parsedPrice >= 0 ? parsedPrice : null,
       active: draft.active,
     }
     onChange(editingId ? services.map((item) => (item.id === editingId ? service : item)) : [...services, service])
@@ -113,7 +109,6 @@ export function ServicesCard({
                 </div>
                 <span className="text-xs text-muted-foreground">
                   {durationLabel(service.durationMinutes)}
-                  {service.price !== null ? ` · ${formatCurrencyBRL(service.price)}` : ""}
                 </span>
               </div>
               <div className="flex items-center gap-1">
@@ -149,7 +144,7 @@ export function ServicesCard({
                   value={draft.name}
                   onChange={(event) => setDraft({ ...draft, name: event.target.value })}
                   placeholder="Ex.: Consulta inicial"
-                  maxLength={80}
+                  maxLength={120}
                   required
                 />
               </Field>
@@ -160,30 +155,18 @@ export function ServicesCard({
                   value={draft.description}
                   onChange={(event) => setDraft({ ...draft, description: event.target.value })}
                   rows={2}
-                  maxLength={300}
+                  maxLength={500}
                 />
               </Field>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field>
-                  <FieldLabel htmlFor="service-duration">Duração</FieldLabel>
-                  <OptionSelect
-                    value={draft.durationMinutes}
-                    onValueChange={(value) => setDraft({ ...draft, durationMinutes: value || "30" })}
-                    options={serviceDurationOptions}
-                    ariaLabel="Duração"
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="service-price">Preço (opcional)</FieldLabel>
-                  <Input
-                    id="service-price"
-                    inputMode="decimal"
-                    value={draft.price}
-                    onChange={(event) => setDraft({ ...draft, price: event.target.value })}
-                    placeholder="0,00"
-                  />
-                </Field>
-              </div>
+              <Field>
+                <FieldLabel htmlFor="service-duration">Duração</FieldLabel>
+                <OptionSelect
+                  value={draft.durationMinutes}
+                  onValueChange={(value) => setDraft({ ...draft, durationMinutes: value || "30" })}
+                  options={serviceDurationOptions}
+                  ariaLabel="Duração"
+                />
+              </Field>
               <Field orientation="horizontal">
                 <Switch
                   id="service-active"

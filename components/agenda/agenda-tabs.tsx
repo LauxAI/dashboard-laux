@@ -1,11 +1,17 @@
 "use client"
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import type { Appointment } from "@/lib/domain/types"
+import type { Appointment, AvailabilityConfig } from "@/lib/domain/types"
 import { AppointmentsOverview } from "./appointments-overview"
 import { AvailabilitySettings } from "./availability-settings"
 
-export function AgendaTabs({ appointments }: { appointments: Appointment[] }) {
+export function AgendaTabs({
+  appointments,
+  availability,
+}: {
+  appointments: Appointment[]
+  availability: AvailabilityConfig
+}) {
   return (
     <Tabs defaultValue="agendamentos" className="gap-6">
       <TabsList variant="line" className="border-b">
@@ -16,7 +22,7 @@ export function AgendaTabs({ appointments }: { appointments: Appointment[] }) {
         <AppointmentsOverview appointments={appointments} />
       </TabsContent>
       <TabsContent value="disponibilidade">
-        <AvailabilitySettings />
+        <AvailabilitySettings initialConfig={availability} />
       </TabsContent>
     </Tabs>
   )

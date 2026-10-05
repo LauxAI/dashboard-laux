@@ -22,7 +22,7 @@ export const SCHEDULING_NEXT_ACTIONS = [
 ] as const
 export type SchedulingNextAction = (typeof SCHEDULING_NEXT_ACTIONS)[number]
 
-/** Ferramentas que dependerão da Agenda real. Nenhuma está conectada nesta fase. */
+/** Ferramentas server-side ligadas à Agenda real da empresa. */
 export const SCHEDULING_TOOLS = [
   "get_availability",
   "get_services",
@@ -128,6 +128,32 @@ function isEmailInText(email: string, text: string): boolean {
   return text.toLowerCase().includes(email)
 }
 
+export interface CustomerFieldsToAccept {
+  name: boolean
+  phone: boolean
+  email: boolean
+}
+
+/**
+ * Mescla dados candidatos (vindos do modelo) ao cliente atual. Cada valor só é
+ * aceito se for válido e se o próprio cliente o escreveu na conversa.
+ */
+export function acceptCustomerData(
+  previous: ConversationCustomer,
+  candidate: { name?: unknown; phone?: unknown; email?: unknown },
+  accept: CustomerFieldsToAccept,
+  userText: string,
+): ConversationCustomer {
+  const name = accept.name ? normalizeName(candidate.name) : null
+  const phone = accept.phone ? normalizePhone(candidate.phone) : null
+  const email = accept.email ? normalizeEmail(candidate.email) : null
+  return {
+    name: name && (name === previous.name || isNameInText(name, userText)) ? name : previous.name,
+    phone: phone && (phone === previous.phone || isPhoneInText(phone, userText)) ? phone : previous.phone,
+    email: email && (email === previous.email || isEmailInText(email, userText)) ? email : previous.email,
+  }
+}
+
 function parseIntent(value: unknown): ConversationIntent | null {
   return CONVERSATION_INTENTS.includes(value as ConversationIntent) ? (value as ConversationIntent) : null
 }
@@ -219,32 +245,58 @@ export function computeNextAction(
 
 const NEGATION = /\b(nao|ainda nao|sem)\s*$/
 
-const UNSUPPORTED_CLAIMS: RegExp[] = [
+export type CompletedActionType = "created" | "cancelled" | "rescheduled"
+
+/** O que as ferramentas realmente fizeram nesta rodada. Só isso autoriza afirmações. */
+export interface ClaimEvidence {
+  availabilityChecked: boolean
+  completed: readonly CompletedActionType[]
+  /** Resposta a usar quando o modelo afirmar algo sem evidência (ex.: motivo da falha). */
+  failureReply?: string | null
+}
+
+const NO_EVIDENCE: ClaimEvidence = { availabilityChecked: false, completed: [] }
+
+const ACTION_CLAIMS: RegExp[] = [
   /\b(foi|esta|ficou|ja esta|estao|foram)\s+(confirmad|criad|marcad|agendad|cancelad|reagendad|remarcad)[oa]s?\b/g,
   /\b(agendei|marquei|confirmei|cancelei|reagendei|remarquei)\b/g,
+]
+
+const AVAILABILITY_CLAIMS: RegExp[] = [
   /\b(temos|tenho|ha|existem?)\s+(horarios?|vagas?|disponibilidade)\b/g,
   /\b(esta|estao)\s+(disponive(l|is)|livres?)\b/g,
   /\bhorarios?\s+(disponiveis|livres)\s*(:|sao|para)/g,
 ]
 
-/** Detecta afirmações de disponibilidade ou de ações executadas sem fonte real. */
-export function hasUnsupportedClaim(reply: string): boolean {
-  const text = normalizeForSearch(reply)
-  return UNSUPPORTED_CLAIMS.some((pattern) =>
-    Array.from(text.matchAll(pattern)).some((match) => {
-      const before = text.slice(Math.max(0, (match.index ?? 0) - 12), match.index)
-      return !NEGATION.test(before)
-    }),
+function affirmedMatches(text: string, patterns: RegExp[]): string[] {
+  return patterns.flatMap((pattern) =>
+    Array.from(text.matchAll(pattern))
+      .filter((match) => !NEGATION.test(text.slice(Math.max(0, (match.index ?? 0) - 12), match.index)))
+      .map((match) => match[0]),
   )
 }
 
-function guardReply(
-  reply: string,
-  intent: ConversationIntent | null,
-  connectedTools: readonly SchedulingAgentTool[],
-): string {
-  if (connectedTools.length === 0 && hasUnsupportedClaim(reply)) return SAFE_REPLIES[intent ?? "none"]
-  return reply
+function actionsThatSupport(claim: string): CompletedActionType[] {
+  if (claim.includes("cancel")) return ["cancelled"]
+  if (claim.includes("reagend") || claim.includes("remarc")) return ["rescheduled"]
+  return ["created", "rescheduled"]
+}
+
+/**
+ * Detecta afirmações de disponibilidade ou de ações executadas que não têm
+ * respaldo em um resultado real de ferramenta nesta rodada.
+ */
+export function hasUnsupportedClaim(reply: string, evidence: ClaimEvidence = NO_EVIDENCE): boolean {
+  const text = normalizeForSearch(reply)
+  if (!evidence.availabilityChecked && affirmedMatches(text, AVAILABILITY_CLAIMS).length > 0) return true
+  return affirmedMatches(text, ACTION_CLAIMS).some(
+    (claim) => !actionsThatSupport(claim).some((action) => evidence.completed.includes(action)),
+  )
+}
+
+function guardReply(reply: string, intent: ConversationIntent | null, evidence: ClaimEvidence): string {
+  if (!hasUnsupportedClaim(reply, evidence)) return reply
+  return evidence.failureReply ?? SAFE_REPLIES[intent ?? "none"]
 }
 
 function looksLikeJson(raw: string): boolean {
@@ -259,6 +311,8 @@ export interface ResolveAgentTurnInput {
   /** Todas as mensagens do cliente na conversa, usadas para conferir os dados extraídos. */
   userText: string
   connectedTools: readonly SchedulingAgentTool[]
+  /** Resultados reais das ferramentas nesta rodada. Sem evidência, nenhuma afirmação é aceita. */
+  evidence?: ClaimEvidence
 }
 
 export function resolveAgentTurn({
@@ -267,6 +321,7 @@ export function resolveAgentTurn({
   behavior,
   userText,
   connectedTools,
+  evidence = NO_EVIDENCE,
 }: ResolveAgentTurnInput): SchedulingAgentTurn {
   const parsed = parseModelOutput(raw)
 
@@ -275,27 +330,22 @@ export function resolveAgentTurn({
     const reply =
       !plain || looksLikeJson(plain) || plain.length > MAX_REPLY_LENGTH
         ? FALLBACK_REPLY
-        : guardReply(plain, previous.intent, connectedTools)
+        : guardReply(plain, previous.intent, evidence)
     return { reply, state: previous, ...computeNextAction(previous, behavior, connectedTools), structured: false }
   }
 
-  const name = behavior.askName ? normalizeName(parsed.customer.name) : null
-  const phone = behavior.askPhone ? normalizePhone(parsed.customer.phone) : null
-  const email = behavior.askEmail ? normalizeEmail(parsed.customer.email) : null
-
   const state: SchedulingConversationState = {
     intent: parsed.intent ?? previous.intent,
-    customer: {
-      name: name && (name === previous.customer.name || isNameInText(name, userText)) ? name : previous.customer.name,
-      phone:
-        phone && (phone === previous.customer.phone || isPhoneInText(phone, userText)) ? phone : previous.customer.phone,
-      email:
-        email && (email === previous.customer.email || isEmailInText(email, userText)) ? email : previous.customer.email,
-    },
+    customer: acceptCustomerData(
+      previous.customer,
+      parsed.customer,
+      { name: behavior.askName, phone: behavior.askPhone, email: behavior.askEmail },
+      userText,
+    ),
   }
 
   return {
-    reply: guardReply(parsed.reply, state.intent, connectedTools),
+    reply: guardReply(parsed.reply, state.intent, evidence),
     state,
     ...computeNextAction(state, behavior, connectedTools),
     structured: true,
