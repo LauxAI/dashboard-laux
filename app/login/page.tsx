@@ -10,13 +10,16 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/c
 import { Input } from "@/components/ui/input"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { createClient } from "@/lib/supabase/client"
+import { getAccountAccess, INACTIVE_ACCOUNT_MESSAGE, INACTIVE_ACCOUNT_REASON } from "@/lib/supabase/account-access"
 
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(() =>
+    searchParams.get("motivo") === INACTIVE_ACCOUNT_REASON ? INACTIVE_ACCOUNT_MESSAGE : null,
+  )
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -39,6 +42,18 @@ function LoginForm() {
       } else {
         setError("E-mail ou senha inválidos.")
       }
+      return
+    }
+
+    const access = await getAccountAccess(supabase)
+    if (access.status !== "active") {
+      await supabase.auth.signOut()
+      setIsLoading(false)
+      setError(
+        access.status === "blocked"
+          ? INACTIVE_ACCOUNT_MESSAGE
+          : "Não foi possível validar sua conta. Tente novamente em instantes.",
+      )
       return
     }
 

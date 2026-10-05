@@ -1,5 +1,14 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
+import { getAccountAccess, INACTIVE_ACCOUNT_MESSAGE, INACTIVE_ACCOUNT_REASON } from "./account-access"
+
+function redirectTo(request: NextRequest, pathname: string, search: Record<string, string> = {}) {
+  const url = request.nextUrl.clone()
+  url.pathname = pathname
+  url.search = ""
+  for (const [key, value] of Object.entries(search)) url.searchParams.set(key, value)
+  return NextResponse.redirect(url)
+}
 
 const PUBLIC_PATHS = [
   "/login",
@@ -54,6 +63,31 @@ export async function updateSession(request: NextRequest) {
     url.pathname = "/login"
     url.searchParams.set("next", pathname)
     return NextResponse.redirect(url)
+  }
+
+  // The OAuth/recovery callback must exchange its code before any check.
+  if (user && !pathname.startsWith("/auth/callback")) {
+    const access = await getAccountAccess(supabase)
+    const isApi = pathname.startsWith("/api/")
+
+    if (access.status === "blocked") {
+      // Authenticated in Supabase Auth, but without an active client account
+      // (deleted, suspended, expired, cancelled): end the session server-side.
+      await supabase.auth.signOut()
+      const response = isApi
+        ? NextResponse.json({ error: INACTIVE_ACCOUNT_MESSAGE }, { status: 403 })
+        : pathname === "/login"
+          ? NextResponse.next({ request })
+          : redirectTo(request, "/login", { motivo: INACTIVE_ACCOUNT_REASON })
+      supabaseResponse.cookies.getAll().forEach((cookie) => response.cookies.set(cookie))
+      return response
+    }
+
+    if (access.status === "error" && !isPublicPath) {
+      return isApi
+        ? NextResponse.json({ error: "Não foi possível validar sua conta." }, { status: 503 })
+        : redirectTo(request, "/erro-autenticacao")
+    }
   }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is.
