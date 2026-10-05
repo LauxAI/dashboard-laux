@@ -4,16 +4,32 @@ export const INACTIVE_ACCOUNT_REASON = "conta-inativa"
 
 export const INACTIVE_ACCOUNT_MESSAGE = "Sua conta está inativa ou não possui mais acesso ao LAUXAI."
 
-export type AccountAccess = { status: "active"; companyId: string } | { status: "blocked" } | { status: "error" }
+export const ADMIN_ACCOUNT_REASON = "conta-administrativa"
+
+export const ADMIN_ACCOUNT_MESSAGE =
+  "Esta é uma conta administrativa. Acesse pelo Painel Administrativo do LAUXAI."
+
+export type AccountAccess =
+  | { status: "active"; companyId: string }
+  | { status: "admin" }
+  | { status: "blocked" }
+  | { status: "error" }
 
 /**
- * Resolves whether the authenticated user owns an active client account.
+ * Resolves what the authenticated user may access in the client dashboard.
  *
- * RLS on `client_accounts` only lets admins read rows, so the lookup goes
- * through the existing `current_client_company_id()` SECURITY DEFINER function.
- * It is scoped to `auth.uid()` and returns a company id only when the user's
- * account has status `ativo`; anything else (missing, pendente, suspenso,
- * expirado, cancelado) comes back as null.
+ * Both lookups go through existing SECURITY DEFINER functions scoped to
+ * `auth.uid()`, because RLS on `client_accounts` / `admin_profiles` only lets
+ * admins read rows:
+ * - `current_client_company_id()` returns a company id only for a client
+ *   account with status `ativo`.
+ * - `is_active_admin()` is true only when the caller's own `admin_profiles`
+ *   row has status `ativo`.
+ *
+ * An active client account always wins. An active admin without one gets
+ * `admin`: callers must keep them out of the client dashboard, but must not
+ * treat them as an inactive account or revoke their session, since the admin
+ * dashboard authenticates separately.
  */
 export async function getAccountAccess(supabase: SupabaseClient): Promise<AccountAccess> {
   const {
@@ -23,10 +39,20 @@ export async function getAccountAccess(supabase: SupabaseClient): Promise<Accoun
 
   if (userError || !user) return { status: "blocked" }
 
-  const { data: companyId, error } = await supabase.rpc("current_client_company_id")
+  const [clientResult, adminResult] = await Promise.all([
+    supabase.rpc("current_client_company_id"),
+    supabase.rpc("is_active_admin"),
+  ])
 
-  if (error) return { status: "error" }
-  if (typeof companyId !== "string" || companyId.length === 0) return { status: "blocked" }
+  if (clientResult.error) return { status: "error" }
 
-  return { status: "active", companyId }
+  const companyId = clientResult.data
+  if (typeof companyId === "string" && companyId.length > 0) {
+    return { status: "active", companyId }
+  }
+
+  if (adminResult.error) return { status: "error" }
+  if (adminResult.data === true) return { status: "admin" }
+
+  return { status: "blocked" }
 }

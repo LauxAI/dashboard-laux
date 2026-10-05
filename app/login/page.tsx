@@ -10,16 +10,25 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/c
 import { Input } from "@/components/ui/input"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { createClient } from "@/lib/supabase/client"
-import { getAccountAccess, INACTIVE_ACCOUNT_MESSAGE, INACTIVE_ACCOUNT_REASON } from "@/lib/supabase/account-access"
+import {
+  ADMIN_ACCOUNT_MESSAGE,
+  ADMIN_ACCOUNT_REASON,
+  getAccountAccess,
+  INACTIVE_ACCOUNT_MESSAGE,
+  INACTIVE_ACCOUNT_REASON,
+} from "@/lib/supabase/account-access"
 
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(() =>
-    searchParams.get("motivo") === INACTIVE_ACCOUNT_REASON ? INACTIVE_ACCOUNT_MESSAGE : null,
-  )
+  const [error, setError] = useState<string | null>(() => {
+    const reason = searchParams.get("motivo")
+    if (reason === INACTIVE_ACCOUNT_REASON) return INACTIVE_ACCOUNT_MESSAGE
+    if (reason === ADMIN_ACCOUNT_REASON) return ADMIN_ACCOUNT_MESSAGE
+    return null
+  })
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -46,6 +55,14 @@ function LoginForm() {
     }
 
     const access = await getAccountAccess(supabase)
+    if (access.status === "admin") {
+      // Only drop the session just created here; never revoke the admin's
+      // sessions elsewhere (default signOut scope is global).
+      await supabase.auth.signOut({ scope: "local" })
+      setIsLoading(false)
+      setError(ADMIN_ACCOUNT_MESSAGE)
+      return
+    }
     if (access.status !== "active") {
       await supabase.auth.signOut()
       setIsLoading(false)
