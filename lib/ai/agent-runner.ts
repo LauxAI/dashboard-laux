@@ -15,14 +15,33 @@ export type AgentStream = {
   usage: () => Promise<{ inputTokens?: number; outputTokens?: number }>
 }
 
-/** Mesmo prompt, modelo e parâmetros de antes; as mensagens do usuário vão somente em `messages`. */
-export function streamAgent(input: {
+export type AgentRunInput = {
   type: AIAgentType
   config: AIAgentConfig
   companyName?: string | null
   messages: ChatMessage[]
   abortSignal?: AbortSignal
-}): AgentStream {
+}
+
+export type AgentReply = { text: string; inputTokens?: number; outputTokens?: number }
+
+/**
+ * Resposta completa (sem streaming), com o mesmo prompt, modelo e parâmetros do
+ * playground. Lança se o modelo falhar ou devolver texto vazio.
+ */
+export async function generateAgentReply(input: AgentRunInput): Promise<AgentReply> {
+  const stream = streamAgent(input)
+  let text = ""
+  for await (const chunk of stream.textStream) text += chunk
+  const error = stream.getError()
+  if (error) throw error
+  const trimmed = text.trim()
+  if (!trimmed) throw new Error("empty_model_response")
+  return { text: trimmed, ...(await stream.usage()) }
+}
+
+/** Mesmo prompt, modelo e parâmetros de antes; as mensagens do usuário vão somente em `messages`. */
+export function streamAgent(input: AgentRunInput): AgentStream {
   let streamError: unknown
 
   const result = streamText({

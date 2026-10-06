@@ -44,6 +44,17 @@ export type InboundOptions = {
   db?: SupabaseClient
   /** Resolve a conexão ativa. Omitido = resolveWhatsAppCompany. Permite reutilizar a consulta do webhook. */
   resolveConnection?: (phoneNumberId: string) => Promise<ResolvedWhatsAppCompany | null>
+  /**
+   * Chamado depois que uma mensagem de TEXTO foi gravada (ou já existia). Serve para
+   * disparar a resposta do agente. Pode ser chamado de novo em reenvios da Meta: quem
+   * implementa precisa ser idempotente. Falhas aqui nunca afetam o resultado.
+   */
+  onMessageStored?: (context: {
+    companyId: string
+    conversationId: string
+    inboundMessageId: string
+    phoneNumberId: string
+  }) => Promise<unknown>
 }
 
 function hasText(text: string | null): text is string {
@@ -108,7 +119,7 @@ export async function processWhatsAppInboundMessage(
       },
       db,
     )
-    const { duplicate } = await saveWhatsAppInboundMessage(
+    const { duplicate, message } = await saveWhatsAppInboundMessage(
       {
         conversationId: conversation.id,
         companyId: connection.company_id,
@@ -128,6 +139,23 @@ export async function processWhatsAppInboundMessage(
       text_length: textContent?.length ?? 0,
       event_timestamp: event.timestamp,
     })
+
+    if (options.onMessageStored && messageType === "text") {
+      try {
+        await options.onMessageStored({
+          companyId: connection.company_id,
+          conversationId: conversation.id,
+          inboundMessageId: message.id,
+          phoneNumberId,
+        })
+      } catch (error) {
+        logWebhook("error", "inbound_after_store_failed", {
+          phone_number_id: phoneNumberId,
+          message_id: messageId,
+          error: error instanceof Error ? error.name : "unknown",
+        })
+      }
+    }
     return { status: duplicate ? "duplicate" : "saved", conversationId: conversation.id, messageType }
   } catch (error) {
     const reason = error instanceof WhatsAppConversationError ? error.code : "unexpected"

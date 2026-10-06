@@ -1,4 +1,5 @@
 import { after, NextResponse, type NextRequest } from "next/server"
+import { processWhatsAppAgentReply } from "@/lib/whatsapp/agent-reply"
 import { resolveWhatsAppCompany, type ResolvedWhatsAppCompany } from "@/lib/whatsapp/company"
 import { getWhatsAppConfig } from "@/lib/whatsapp/config"
 import { insertWebhookEvents } from "@/lib/whatsapp/event-store"
@@ -11,6 +12,7 @@ import { verifySignature, verifySubscription } from "@/lib/whatsapp/security"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+export const maxDuration = 60
 
 const NO_STORE = { "Cache-Control": "no-store" }
 
@@ -95,7 +97,11 @@ export async function POST(request: NextRequest) {
     processWhatsAppEvents(parsed.events, {
       resolveCompany: async (phoneNumberId) => (await resolveConnection(phoneNumberId))?.company_id ?? null,
       insertEvents: insertWebhookEvents,
-      processInboundMessage: (event) => processWhatsAppInboundMessage(event, { resolveConnection }),
+      processInboundMessage: (event) =>
+        processWhatsAppInboundMessage(event, {
+          resolveConnection,
+          onMessageStored: (context) => processWhatsAppAgentReply(context),
+        }),
     }).catch((error) => {
       logWebhook("error", "processing_failed", { error: error instanceof Error ? error.name : "unknown" })
     }),
