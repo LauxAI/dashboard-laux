@@ -29,8 +29,9 @@ export const WHATSAPP_MESSAGE_TYPES = [
 ] as const
 export type WhatsAppMessageType = (typeof WHATSAPP_MESSAGE_TYPES)[number]
 
-export type WhatsAppMessageStatus = "received" | "sent" | "delivered" | "read" | "failed"
-export type WhatsAppOutboundStatus = Exclude<WhatsAppMessageStatus, "received">
+/** "pending" é a reserva de uma resposta do agente, criada só pelo runner antes do envio. */
+export type WhatsAppMessageStatus = "received" | "pending" | "sent" | "delivered" | "read" | "failed"
+export type WhatsAppOutboundStatus = Exclude<WhatsAppMessageStatus, "received" | "pending">
 
 export type WhatsAppConversation = {
   id: string
