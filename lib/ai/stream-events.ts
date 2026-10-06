@@ -1,0 +1,43 @@
+export type StreamUsageFlags = { userExceeded: boolean; companyExceeded: boolean }
+
+export type AgentStreamEvent =
+  | { type: "delta"; text: string }
+  | { type: "done"; usage: StreamUsageFlags }
+  | { type: "error"; error: string }
+
+export const STREAM_CONTENT_TYPE = "application/x-ndjson; charset=utf-8"
+
+export function encodeStreamEvent(event: AgentStreamEvent): string {
+  return `${JSON.stringify(event)}\n`
+}
+
+/** Linha inválida ou de formato desconhecido retorna null; o cliente a ignora. */
+export function parseStreamLine(line: string): AgentStreamEvent | null {
+  if (!line.trim()) return null
+  let value: unknown
+  try {
+    value = JSON.parse(line)
+  } catch {
+    return null
+  }
+  if (!value || typeof value !== "object") return null
+  const event = value as Record<string, unknown>
+
+  if (event.type === "delta" && typeof event.text === "string") return { type: "delta", text: event.text }
+  if (event.type === "error" && typeof event.error === "string") return { type: "error", error: event.error }
+  if (event.type === "done" && event.usage && typeof event.usage === "object") {
+    const usage = event.usage as Record<string, unknown>
+    return {
+      type: "done",
+      usage: { userExceeded: usage.userExceeded === true, companyExceeded: usage.companyExceeded === true },
+    }
+  }
+  return null
+}
+
+/** Separa o buffer em linhas completas e devolve o resto (linha ainda incompleta). */
+export function splitStreamBuffer(buffer: string): { lines: string[]; rest: string } {
+  const parts = buffer.split("\n")
+  const rest = parts.pop() ?? ""
+  return { lines: parts, rest }
+}
