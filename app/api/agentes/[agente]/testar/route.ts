@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
-import { runAgent } from "@/lib/ai/agent-runner"
+import { streamAgent, type AgentStream } from "@/lib/ai/agent-runner"
 import { GeminiNotConfiguredError } from "@/lib/ai/gemini"
 import { parseTestRequest } from "@/lib/ai/request"
+import { encodeStreamEvent, STREAM_CONTENT_TYPE, type AgentStreamEvent } from "@/lib/ai/stream-events"
 import { readUsage, recordUsage } from "@/lib/ai/usage"
 import { isAIAgentType, normalizeAIAgentConfig, validateAIAgentConfig } from "@/lib/domain/ai-agents"
 import { createClient } from "@/lib/supabase/server"
@@ -61,29 +62,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
   const { data: company } = await supabase.from("companies").select("name").eq("id", companyId).maybeSingle()
 
   const startedAt = Date.now()
+  let agentStream: AgentStream
   try {
-    const result = await runAgent({
+    agentStream = streamAgent({
       type: agente,
       config,
       companyName: company?.name ?? null,
       messages: parsed.messages,
-    })
-    await recordUsage(supabase, {
-      companyId,
-      userId: user.id,
-      agentType: agente,
-      status: "success",
-      inputTokens: result.inputTokens,
-      outputTokens: result.outputTokens,
-      latencyMs: Date.now() - startedAt,
-    })
-    return NextResponse.json({
-      reply: result.reply,
-      usage: { userExceeded: usage.userExceeded, companyExceeded: usage.companyExceeded },
+      abortSignal: request.signal,
     })
   } catch (error) {
-    // Nunca registra a chave nem o conteúdo das mensagens.
-    console.error("[ai-agent] falha ao gerar resposta:", error instanceof Error ? error.name : "erro desconhecido")
+    console.error("[ai-agent] falha ao iniciar resposta:", error instanceof Error ? error.name : "erro desconhecido")
     await recordUsage(supabase, {
       companyId,
       userId: user.id,
@@ -94,4 +83,61 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
     if (error instanceof GeminiNotConfiguredError) return fail(502, "O serviço de IA não está configurado.")
     return fail(502, "Não foi possível gerar a resposta agora. Tente novamente.")
   }
+
+  const encoder = new TextEncoder()
+  const responseStream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (event: AgentStreamEvent) => controller.enqueue(encoder.encode(encodeStreamEvent(event)))
+      let hasText = false
+      let failure: unknown
+
+      try {
+        for await (const text of agentStream.textStream) {
+          if (!text) continue
+          // O conteúdo nunca é guardado: só se registra se houve texto.
+          if (text.trim()) hasText = true
+          send({ type: "delta", text })
+        }
+        failure = agentStream.getError()
+        if (!failure && !hasText) failure = new Error("Resposta vazia do modelo.")
+      } catch (error) {
+        failure = error
+      }
+
+      const latencyMs = Date.now() - startedAt
+      if (failure) {
+        // Nunca registra a chave nem o conteúdo das mensagens.
+        console.error("[ai-agent] falha ao gerar resposta:", failure instanceof Error ? failure.name : "erro desconhecido")
+        await recordUsage(supabase, { companyId, userId: user.id, agentType: agente, status: "error", latencyMs })
+        try {
+          send({ type: "error", error: "Não foi possível gerar a resposta agora. Tente novamente." })
+        } catch {}
+      } else {
+        const tokens = await agentStream.usage()
+        await recordUsage(supabase, {
+          companyId,
+          userId: user.id,
+          agentType: agente,
+          status: "success",
+          inputTokens: tokens.inputTokens,
+          outputTokens: tokens.outputTokens,
+          latencyMs,
+        })
+        try {
+          send({ type: "done", usage: { userExceeded: usage.userExceeded, companyExceeded: usage.companyExceeded } })
+        } catch {}
+      }
+      try {
+        controller.close()
+      } catch {}
+    },
+  })
+
+  return new Response(responseStream, {
+    headers: {
+      "Content-Type": STREAM_CONTENT_TYPE,
+      "Cache-Control": "no-cache, no-transform",
+      "X-Accel-Buffering": "no",
+    },
+  })
 }

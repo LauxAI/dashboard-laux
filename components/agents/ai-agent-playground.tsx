@@ -6,6 +6,7 @@ import { SectionCard } from "@/components/shared/section-card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { TEST_LIMITS, type ChatMessage } from "@/lib/ai/request"
+import { parseStreamLine, splitStreamBuffer } from "@/lib/ai/stream-events"
 import type { AIAgentType } from "@/lib/domain/types"
 import { cn } from "@/lib/utils"
 
@@ -45,22 +46,56 @@ export function AIAgentPlayground({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: next }),
       })
-      const data = (await response.json().catch(() => ({}))) as {
-        reply?: string
-        error?: string
-        usage?: { userExceeded: boolean; companyExceeded: boolean }
-      }
-      if (!response.ok || !data.reply) {
+
+      if (!response.ok || !response.body) {
+        const data = (await response.json().catch(() => ({}))) as { error?: string }
         setError(data.error ?? "Não foi possível gerar a resposta.")
         return
       }
-      setMessages([...next, { role: "assistant", content: data.reply }])
-      setNotice(
-        data.usage?.userExceeded || data.usage?.companyExceeded
-          ? "Seu volume de testes está acima do esperado. O agente continua funcionando, mas o uso está sendo monitorado."
-          : null,
-      )
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ""
+      let reply = ""
+      let finished = false
+      let failure: string | null = null
+
+      const handleLine = (line: string) => {
+        const event = parseStreamLine(line)
+        if (!event) return
+        if (event.type === "delta") {
+          reply += event.text
+          setMessages([...next, { role: "assistant", content: reply }])
+        } else if (event.type === "error") {
+          failure = event.error
+        } else {
+          finished = true
+          setNotice(
+            event.usage.userExceeded || event.usage.companyExceeded
+              ? "Seu volume de testes está acima do esperado. O agente continua funcionando, mas o uso está sendo monitorado."
+              : null,
+          )
+        }
+      }
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const { lines, rest } = splitStreamBuffer(buffer)
+        buffer = rest
+        lines.forEach(handleLine)
+      }
+      buffer += decoder.decode()
+      if (buffer) handleLine(buffer)
+
+      if (failure || !finished) {
+        // Descarta a resposta parcial para não enviá-la como histórico ao modelo.
+        setMessages(next)
+        setError(failure ?? "A resposta foi interrompida. Tente novamente.")
+      }
     } catch {
+      setMessages(next)
       setError("Falha de conexão. Verifique sua internet e tente novamente.")
     } finally {
       setIsLoading(false)
@@ -110,6 +145,7 @@ export function AIAgentPlayground({
         className="flex h-80 flex-col gap-3 overflow-y-auto rounded-lg border bg-muted/30 p-3"
         role="log"
         aria-live="polite"
+        aria-busy={isLoading}
         aria-label="Conversa de teste"
       >
         {messages.length === 0 && !isLoading && (
@@ -130,7 +166,7 @@ export function AIAgentPlayground({
             {message.content}
           </div>
         ))}
-        {isLoading && (
+        {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
           <div className="self-start rounded-lg border bg-card px-3 py-2 text-sm text-muted-foreground">
             Digitando...
           </div>
