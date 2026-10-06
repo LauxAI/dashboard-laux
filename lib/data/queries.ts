@@ -14,9 +14,11 @@ import type {
   Message,
   Notification,
   PlanUsage,
+  SchedulingAgentSettings,
   TeamMember,
   User,
 } from "@/lib/domain/types"
+import { normalizeSchedulingAgentConfig, normalizeSchedulingAgentStatus } from "@/lib/domain/scheduling-agent"
 import {
   toActivity,
   toAgent,
@@ -126,6 +128,21 @@ export const getAutomations = () =>
 export const getAgents = () => listRows<AIAgent>("ai_agents", toAgent, "Não foi possível carregar os agentes.")
 export const getAgent = (id: string) =>
   getRowById<AIAgent>("ai_agents", id, toAgent, "Não foi possível carregar o agente.")
+
+/** Configuração do Agente de Agendamento da empresa; `null` enquanto nunca foi salva. */
+export async function getSchedulingAgentSettings(): Promise<SchedulingAgentSettings | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("scheduling_agent_settings")
+    .select("status, config, updated_at")
+    .maybeSingle()
+  if (error || !data) return null
+  return {
+    status: normalizeSchedulingAgentStatus(data.status),
+    config: normalizeSchedulingAgentConfig(data.config),
+    updatedAt: (data.updated_at as string | null) ?? null,
+  }
+}
 
 export const getAppointments = () =>
   listRows<Appointment>("appointments", toAppointment, "Não foi possível carregar a agenda.", {

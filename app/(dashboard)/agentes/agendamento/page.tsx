@@ -2,12 +2,12 @@ import Link from "next/link"
 import { ChevronLeft } from "lucide-react"
 import { SchedulingAgentForm } from "@/components/agents/scheduling-agent-form"
 import { PageHeader } from "@/components/shared/page-header"
-import { getCompany } from "@/lib/data/queries"
+import { getCompany, getSchedulingAgentSettings } from "@/lib/data/queries"
 
 export const metadata = { title: "Agente de Agendamento" }
 
 export default async function SchedulingAgentPage() {
-  const company = await getCompany()
+  const [company, settings] = await Promise.all([getCompany(), getSchedulingAgentSettings()])
 
   return (
     <div className="flex flex-col gap-6">
@@ -26,7 +26,7 @@ export default async function SchedulingAgentPage() {
             : "Defina como o agente agenda os seus clientes"
         }
       />
-      <SchedulingAgentForm />
+      <SchedulingAgentForm initialConfig={settings?.config} />
     </div>
   )
 }

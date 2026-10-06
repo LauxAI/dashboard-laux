@@ -3,10 +3,14 @@ import { SchedulingAgentCard } from "@/components/agents/scheduling-agent-card"
 import { UpcomingAgents } from "@/components/agents/upcoming-agents"
 import { PageHeader } from "@/components/shared/page-header"
 import { ErrorState } from "@/components/states/states"
-import { getAgents, getCompany } from "@/lib/data/queries"
+import { getAgents, getCompany, getSchedulingAgentSettings } from "@/lib/data/queries"
 
 export default async function AgentesPage() {
-  const [company, { data: agents, error }] = await Promise.all([getCompany(), getAgents()])
+  const [company, { data: agents, error }, schedulingSettings] = await Promise.all([
+    getCompany(),
+    getAgents(),
+    getSchedulingAgentSettings(),
+  ])
 
   return (
     <div className="flex flex-col gap-8">
@@ -23,7 +27,7 @@ export default async function AgentesPage() {
         <h2 id="available-agents-title" className="text-base font-semibold text-foreground">
           Disponíveis
         </h2>
-        <SchedulingAgentCard />
+        <SchedulingAgentCard initialStatus={schedulingSettings?.status} />
       </section>
 
       {error ? (
