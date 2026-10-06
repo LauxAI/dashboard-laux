@@ -30,6 +30,7 @@ describe("parseWhatsAppPayload", () => {
           timestamp: new Date(1760000000 * 1000).toISOString(),
           messageType: "text",
           text: "Olá",
+          contactName: null,
         },
       ],
     })

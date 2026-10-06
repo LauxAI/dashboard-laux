@@ -1,5 +1,5 @@
 import { logWebhook } from "./log"
-import type { WhatsAppEvent } from "./payload"
+import type { WhatsAppEvent, WhatsAppMessageEvent } from "./payload"
 import { hashPayload } from "./security"
 
 export type WebhookEventRow = {
@@ -20,6 +20,11 @@ export type ProcessorDeps = {
   resolveCompany: (phoneNumberId: string) => Promise<string | null>
   /** Insere ignorando duplicados e devolve apenas as chaves realmente inseridas. */
   insertEvents: (rows: WebhookEventRow[]) => Promise<Set<string>>
+  /**
+   * Grava a mensagem recebida na conversa. Chamado só para mensagens de empresas
+   * configuradas, em ordem, e sem lançar: a própria função é idempotente pelo wamid.
+   */
+  processInboundMessage?: (event: WhatsAppMessageEvent) => Promise<unknown>
 }
 
 /**
@@ -122,6 +127,25 @@ export async function processWhatsAppEvents(events: WhatsAppEvent[], deps: Proce
         event_timestamp: event.timestamp,
         error_code: event.errorCode,
         error_title: event.errorTitle,
+      })
+    }
+  }
+
+  const { processInboundMessage } = deps
+  if (!processInboundMessage) return
+
+  // Mesmo quando o evento do webhook já existia, a gravação da mensagem é tentada de
+  // novo: ela é idempotente pelo wamid e recupera uma falha anterior no reenvio da Meta.
+  // Em sequência, para preservar a ordem das mensagens da mesma conversa.
+  for (const event of unique.values()) {
+    if (event.kind !== "message" || (companies.get(event.phoneNumberId) ?? null) === null) continue
+    try {
+      await processInboundMessage(event)
+    } catch (error) {
+      logWebhook("error", "inbound_processing_failed", {
+        message_id: event.messageId,
+        phone_number_id: event.phoneNumberId,
+        error: error instanceof Error ? error.name : "unknown",
       })
     }
   }
