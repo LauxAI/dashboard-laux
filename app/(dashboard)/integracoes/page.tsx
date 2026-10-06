@@ -1,17 +1,29 @@
+import Link from "next/link"
 import { PageHeader } from "@/components/shared/page-header"
 import { PendingActionButton } from "@/components/shared/pending-action-button"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { ErrorState } from "@/components/states/states"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { getIntegrations } from "@/lib/data/queries"
 import { integrationCatalog, integrationCategories } from "@/lib/domain/catalogs"
 import type { IntegrationCategory } from "@/lib/domain/types"
+import { listConnectionsForCurrentCompany } from "@/lib/whatsapp/connections"
+
+async function hasActiveWhatsAppConnection() {
+  try {
+    return (await listConnectionsForCurrentCompany()).some((connection) => connection.status === "active")
+  } catch {
+    return false
+  }
+}
 
 export default async function IntegracoesPage() {
   const { data: integrations, error } = await getIntegrations()
   const statusByProvider = new Map(integrations.map((integration) => [integration.provider, integration.status]))
   const categories = Object.keys(integrationCategories) as IntegrationCategory[]
+  const whatsappConnected = await hasActiveWhatsAppConnection()
 
   return (
     <div className="flex flex-col gap-8">
@@ -32,7 +44,12 @@ export default async function IntegracoesPage() {
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {items.map((item) => {
                 const Icon = item.icon
-                const status = statusByProvider.get(item.provider) ?? "desconectado"
+                const status =
+                  item.provider === "whatsapp"
+                    ? whatsappConnected
+                      ? "conectado"
+                      : "desconectado"
+                    : (statusByProvider.get(item.provider) ?? "desconectado")
                 return (
                   <Card key={item.provider} className="flex flex-col">
                     <CardHeader className="flex flex-row items-start gap-3">
@@ -53,7 +70,12 @@ export default async function IntegracoesPage() {
                           Em breve
                         </Badge>
                       )}
-                      {item.available && (
+                      {item.available && item.provider === "whatsapp" && (
+                        <Button variant="outline" size="sm" render={<Link href="/whatsapp" />} nativeButton={false}>
+                          {status === "conectado" ? "Gerenciar" : "Conectar"}
+                        </Button>
+                      )}
+                      {item.available && item.provider !== "whatsapp" && (
                         <PendingActionButton
                           action={`${status === "conectado" ? "Gerenciar" : "Conectar"} ${item.name}`}
                           variant="outline"

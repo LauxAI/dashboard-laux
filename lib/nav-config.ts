@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react"
 import {
   LayoutDashboard,
   MessagesSquare,
+  MessageCircle,
   Users,
   Contact,
   Workflow,
@@ -26,6 +27,7 @@ export interface NavItem {
 export const operationNav: NavItem[] = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { title: "Conversas", href: "/conversas", icon: MessagesSquare },
+  { title: "WhatsApp", href: "/whatsapp", icon: MessageCircle },
   { title: "Leads", href: "/leads", icon: Users },
   { title: "Clientes", href: "/clientes", icon: Contact },
   { title: "Automações", href: "/automacoes", icon: Workflow },
