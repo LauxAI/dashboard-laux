@@ -264,6 +264,56 @@ export interface SchedulingAgentSettings {
   updatedAt: string | null
 }
 
+/* ---------------------------------------------------------------------------
+ * Agentes de Atendimento, Vendas e Suporte (`ai_agent_settings`).
+ * Uma linha por empresa e tipo; `config` é jsonb validado no servidor.
+ * ------------------------------------------------------------------------- */
+
+export type AIAgentType = "atendimento" | "vendas" | "suporte"
+export type AIAgentStatus = "ativo" | "inativo"
+export type AIAgentTone = "profissional" | "amigavel" | "direto" | "personalizado"
+
+export interface AIAgentOffering {
+  name: string
+  description: string
+  /** Texto livre (ex.: "R$ 199/mês"). */
+  price: string
+}
+
+export interface AIAgentProcedure {
+  title: string
+  steps: string[]
+}
+
+export interface AIAgentConfig {
+  name: string
+  description: string
+  objective: string
+  instructions: string
+  personality: string
+  tone: AIAgentTone
+  customTone: string
+  rules: string[]
+  knowledge: string
+  greeting: string
+  fallbackBehavior: string
+  handoff: { enabled: boolean; criteria: string }
+  /** Somente Vendas. */
+  offerings: AIAgentOffering[]
+  salesApproach: string
+  objectionHandling: string
+  /** Somente Suporte. */
+  procedures: AIAgentProcedure[]
+  unresolvedBehavior: string
+}
+
+export interface AIAgentSettings {
+  agentType: AIAgentType
+  status: AIAgentStatus
+  config: AIAgentConfig
+  updatedAt: string | null
+}
+
 export type WeekdayKey = "segunda" | "terca" | "quarta" | "quinta" | "sexta" | "sabado" | "domingo"
 
 export interface BusinessHoursDay {

@@ -1,15 +1,17 @@
 import { AgentList } from "@/components/agents/agent-list"
+import { AIAgentCard } from "@/components/agents/ai-agent-card"
 import { SchedulingAgentCard } from "@/components/agents/scheduling-agent-card"
-import { UpcomingAgents } from "@/components/agents/upcoming-agents"
 import { PageHeader } from "@/components/shared/page-header"
 import { ErrorState } from "@/components/states/states"
-import { getAgents, getCompany, getSchedulingAgentSettings } from "@/lib/data/queries"
+import { getAgents, getAIAgentSettings, getCompany, getSchedulingAgentSettings } from "@/lib/data/queries"
+import { aiAgentTypes } from "@/lib/domain/ai-agents"
 
 export default async function AgentesPage() {
-  const [company, { data: agents, error }, schedulingSettings] = await Promise.all([
+  const [company, { data: agents, error }, schedulingSettings, aiSettings] = await Promise.all([
     getCompany(),
     getAgents(),
     getSchedulingAgentSettings(),
+    getAIAgentSettings(),
   ])
 
   return (
@@ -27,7 +29,12 @@ export default async function AgentesPage() {
         <h2 id="available-agents-title" className="text-base font-semibold text-foreground">
           Disponíveis
         </h2>
-        <SchedulingAgentCard initialStatus={schedulingSettings?.status} />
+        <div className="flex flex-col gap-4">
+          <SchedulingAgentCard initialStatus={schedulingSettings?.status} />
+          {aiAgentTypes.map((type) => (
+            <AIAgentCard key={type} type={type} initialStatus={aiSettings[type]?.status} />
+          ))}
+        </div>
       </section>
 
       {error ? (
@@ -40,8 +47,6 @@ export default async function AgentesPage() {
           <AgentList agents={agents} />
         </section>
       ) : null}
-
-      <UpcomingAgents />
     </div>
   )
 }

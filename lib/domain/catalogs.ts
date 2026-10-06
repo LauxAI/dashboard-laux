@@ -33,6 +33,8 @@ import {
   Zap,
 } from "lucide-react"
 import type {
+  AIAgentTone,
+  AIAgentType,
   SchedulingAgentBehavior,
   SchedulingTone,
   WeekdayKey,
@@ -429,25 +431,35 @@ export const serviceDurationOptions: Option<string>[] = [
   { value: "120", label: "2 h" },
 ]
 
-export const upcomingAgents: { key: string; name: string; description: string; icon: LucideIcon }[] = [
-  {
-    key: "atendimento",
+export const aiAgentCatalog: Record<
+  AIAgentType,
+  { name: string; description: string; icon: LucideIcon; highlights: string[] }
+> = {
+  atendimento: {
     name: "Agente de Atendimento",
     description: "Responde dúvidas frequentes e direciona o cliente para a equipe certa.",
     icon: MessagesSquare,
+    highlights: ["Responde com a sua base de conhecimento", "Segue as regras e o tom definidos", "Transfere para a equipe quando precisar"],
   },
-  {
-    key: "vendas",
+  vendas: {
     name: "Agente de Vendas",
     description: "Qualifica leads e conduz o contato até a proposta.",
     icon: Zap,
+    highlights: ["Apresenta apenas os seus produtos e serviços", "Qualifica o interesse do contato", "Trata objeções com a sua abordagem"],
   },
-  {
-    key: "suporte",
+  suporte: {
     name: "Agente de Suporte",
     description: "Resolve solicitações de suporte e abre chamados quando necessário.",
     icon: UserRoundCog,
+    highlights: ["Segue os procedimentos cadastrados", "Guia o cliente passo a passo", "Encaminha o que não conseguir resolver"],
   },
+}
+
+export const aiAgentTones: Option<AIAgentTone>[] = [
+  { value: "profissional", label: "Profissional" },
+  { value: "amigavel", label: "Amigável" },
+  { value: "direto", label: "Direto" },
+  { value: "personalizado", label: "Personalizado" },
 ]
 
 /* ------------------------------- Integrações ------------------------------- */
