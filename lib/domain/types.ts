@@ -255,6 +255,15 @@ export interface SchedulingAgentConfig {
   behavior: SchedulingAgentBehavior
 }
 
+export type SchedulingAgentStatus = "ativo" | "inativo"
+
+/** Linha de `scheduling_agent_settings` (uma por empresa). */
+export interface SchedulingAgentSettings {
+  status: SchedulingAgentStatus
+  config: SchedulingAgentConfig
+  updatedAt: string | null
+}
+
 export type WeekdayKey = "segunda" | "terca" | "quarta" | "quinta" | "sexta" | "sabado" | "domingo"
 
 export interface BusinessHoursDay {

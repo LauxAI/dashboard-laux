@@ -1,39 +1,28 @@
 "use client"
 
-import { useState, type FormEvent } from "react"
+import { useState, useTransition, type FormEvent } from "react"
 import Link from "next/link"
 import { CalendarDays } from "lucide-react"
+import { toast } from "sonner"
+import { saveSchedulingAgentConfig } from "@/app/(dashboard)/agentes/agendamento/actions"
 import { OptionSelect } from "@/components/shared/option-select"
 import { SectionCard } from "@/components/shared/section-card"
 import { SettingToggle } from "@/components/shared/setting-toggle"
-import { UnsavedNotice } from "@/components/shared/unsaved-notice"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { schedulingBehaviorOptions, schedulingTones } from "@/lib/domain/catalogs"
+import { defaultSchedulingAgentConfig } from "@/lib/domain/scheduling-agent"
 import type { SchedulingAgentConfig, SchedulingTone } from "@/lib/domain/types"
-import { notifyPendingBackend } from "@/lib/services/pending"
 
-const emptyConfig: SchedulingAgentConfig = {
-  name: "",
-  description: "",
-  greeting: "",
-  tone: "profissional",
-  customTone: "",
-  behavior: {
-    offerAvailableSlots: false,
-    allowConfirmation: false,
-    allowCancellation: false,
-    allowRescheduling: false,
-    askName: false,
-    askPhone: false,
-    askEmail: false,
-  },
-}
-
-export function SchedulingAgentForm({ initialConfig = emptyConfig }: { initialConfig?: SchedulingAgentConfig }) {
+export function SchedulingAgentForm({
+  initialConfig = defaultSchedulingAgentConfig,
+}: {
+  initialConfig?: SchedulingAgentConfig
+}) {
   const [config, setConfig] = useState(initialConfig)
+  const [isPending, startTransition] = useTransition()
 
   const update = <K extends keyof SchedulingAgentConfig>(key: K, value: SchedulingAgentConfig[K]) =>
     setConfig((current) => ({ ...current, [key]: value }))
@@ -43,7 +32,11 @@ export function SchedulingAgentForm({ initialConfig = emptyConfig }: { initialCo
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    notifyPendingBackend("Salvar configurações do Agente de Agendamento")
+    startTransition(async () => {
+      const result = await saveSchedulingAgentConfig(config)
+      if ("error" in result) toast.error(result.error)
+      else toast.success("Configurações do agente salvas.")
+    })
   }
 
   const agendaOptions = schedulingBehaviorOptions.filter((option) => option.group === "agenda")
@@ -51,8 +44,6 @@ export function SchedulingAgentForm({ initialConfig = emptyConfig }: { initialCo
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-      <UnsavedNotice />
-
       <SectionCard title="Identidade" description="Como o agente se apresenta aos seus clientes">
         <FieldGroup>
           <Field>
@@ -158,7 +149,9 @@ export function SchedulingAgentForm({ initialConfig = emptyConfig }: { initialCo
           <CalendarDays data-icon="inline-start" />
           Configurar horários e serviços
         </Button>
-        <Button type="submit">Salvar configurações</Button>
+        <Button type="submit" disabled={isPending}>
+          {isPending ? "Salvando..." : "Salvar configurações"}
+        </Button>
       </div>
     </form>
   )

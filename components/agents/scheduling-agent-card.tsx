@@ -1,16 +1,33 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useTransition } from "react"
 import Link from "next/link"
 import { CalendarClock, Settings2 } from "lucide-react"
+import { toast } from "sonner"
+import { setSchedulingAgentStatus } from "@/app/(dashboard)/agentes/agendamento/actions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
+import type { SchedulingAgentStatus } from "@/lib/domain/types"
 import { cn } from "@/lib/utils"
 
-export function SchedulingAgentCard() {
-  const [active, setActive] = useState(false)
+export function SchedulingAgentCard({ initialStatus = "inativo" }: { initialStatus?: SchedulingAgentStatus }) {
+  const [active, setActive] = useState(initialStatus === "ativo")
+  const [isPending, startTransition] = useTransition()
+
+  const handleToggle = (checked: boolean) => {
+    setActive(checked)
+    startTransition(async () => {
+      const result = await setSchedulingAgentStatus(checked ? "ativo" : "inativo")
+      if ("error" in result) {
+        setActive(!checked)
+        toast.error(result.error)
+      } else {
+        toast.success(checked ? "Agente de Agendamento ativado." : "Agente de Agendamento desativado.")
+      }
+    })
+  }
 
   return (
     <Card className="overflow-hidden">
@@ -54,7 +71,8 @@ export function SchedulingAgentCard() {
           <Switch
             id="scheduling-agent-active"
             checked={active}
-            onCheckedChange={setActive}
+            onCheckedChange={handleToggle}
+            disabled={isPending}
             aria-describedby="scheduling-agent-active-hint"
           />
           <div className="flex flex-col">
@@ -62,7 +80,7 @@ export function SchedulingAgentCard() {
               {active ? "Desativar agente" : "Ativar agente"}
             </label>
             <span id="scheduling-agent-active-hint" className="text-xs text-muted-foreground">
-              Prévia — o status ainda não é salvo
+              O status é salvo ao alternar
             </span>
           </div>
         </div>
