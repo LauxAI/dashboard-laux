@@ -1,8 +1,11 @@
 import { createClient } from "@/lib/supabase/server"
 import { normalizeRole } from "@/lib/domain/catalogs"
+import { isAIAgentType, normalizeAIAgentConfig, normalizeAIAgentStatus } from "@/lib/domain/ai-agents"
 import type {
   Activity,
   AIAgent,
+  AIAgentSettings,
+  AIAgentType,
   Appointment,
   Automation,
   Client,
@@ -142,6 +145,24 @@ export async function getSchedulingAgentSettings(): Promise<SchedulingAgentSetti
     config: normalizeSchedulingAgentConfig(data.config),
     updatedAt: (data.updated_at as string | null) ?? null,
   }
+}
+
+/** Configurações dos agentes de Atendimento, Vendas e Suporte da empresa, por tipo. */
+export async function getAIAgentSettings(): Promise<Partial<Record<AIAgentType, AIAgentSettings>>> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from("ai_agent_settings").select("agent_type, status, config, updated_at")
+  if (error || !data) return {}
+  const result: Partial<Record<AIAgentType, AIAgentSettings>> = {}
+  for (const row of data) {
+    if (!isAIAgentType(row.agent_type)) continue
+    result[row.agent_type] = {
+      agentType: row.agent_type,
+      status: normalizeAIAgentStatus(row.status),
+      config: normalizeAIAgentConfig(row.agent_type, row.config),
+      updatedAt: (row.updated_at as string | null) ?? null,
+    }
+  }
+  return result
 }
 
 export const getAppointments = () =>
