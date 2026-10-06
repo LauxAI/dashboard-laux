@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
 
   after(() =>
     processWhatsAppEvents(parsed.events, {
-      resolveCompany: resolveWhatsAppCompany,
+      resolveCompany: async (phoneNumberId) => (await resolveWhatsAppCompany(phoneNumberId))?.company_id ?? null,
       insertEvents: insertWebhookEvents,
     }).catch((error) => {
       logWebhook("error", "processing_failed", { error: error instanceof Error ? error.name : "unknown" })
