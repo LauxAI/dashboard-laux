@@ -1,7 +1,8 @@
 import { after, NextResponse, type NextRequest } from "next/server"
-import { resolveWhatsAppCompany } from "@/lib/whatsapp/company"
+import { resolveWhatsAppCompany, type ResolvedWhatsAppCompany } from "@/lib/whatsapp/company"
 import { getWhatsAppConfig } from "@/lib/whatsapp/config"
 import { insertWebhookEvents } from "@/lib/whatsapp/event-store"
+import { processWhatsAppInboundMessage } from "@/lib/whatsapp/inbound"
 import { logWebhook } from "@/lib/whatsapp/log"
 import { parseWhatsAppPayload } from "@/lib/whatsapp/payload"
 import { processWhatsAppEvents } from "@/lib/whatsapp/processor"
@@ -78,10 +79,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Payload inválido." }, { status: 400, headers: NO_STORE })
   }
 
+  // Uma consulta por phone_number_id nesta requisição, compartilhada entre a
+  // resolução da empresa e o processamento da mensagem recebida.
+  const connections = new Map<string, Promise<ResolvedWhatsAppCompany | null>>()
+  const resolveConnection = (phoneNumberId: string) => {
+    let connection = connections.get(phoneNumberId)
+    if (!connection) {
+      connection = resolveWhatsAppCompany(phoneNumberId)
+      connections.set(phoneNumberId, connection)
+    }
+    return connection
+  }
+
   after(() =>
     processWhatsAppEvents(parsed.events, {
-      resolveCompany: async (phoneNumberId) => (await resolveWhatsAppCompany(phoneNumberId))?.company_id ?? null,
+      resolveCompany: async (phoneNumberId) => (await resolveConnection(phoneNumberId))?.company_id ?? null,
       insertEvents: insertWebhookEvents,
+      processInboundMessage: (event) => processWhatsAppInboundMessage(event, { resolveConnection }),
     }).catch((error) => {
       logWebhook("error", "processing_failed", { error: error instanceof Error ? error.name : "unknown" })
     }),

@@ -9,8 +9,10 @@ export type WhatsAppMessageEvent = {
   messageId: string
   timestamp: string | null
   messageType: string
-  /** Somente para mensagens do tipo "text". Nunca é registrado em log nem persistido. */
+  /** Somente para mensagens do tipo "text". Nunca é registrado em log. */
   text: string | null
+  /** Nome do perfil do contato (contacts[].profile.name). Informativo; nunca é registrado em log. */
+  contactName: string | null
 }
 
 export type WhatsAppStatusEvent = {
@@ -34,6 +36,7 @@ export type ParsedPayload =
 const MAX_TEXT_LENGTH = 4096
 const MAX_ID_LENGTH = 256
 const MAX_TITLE_LENGTH = 200
+const MAX_NAME_LENGTH = 256
 
 type UnknownRecord = Record<string, unknown>
 
@@ -61,10 +64,25 @@ function toIsoTimestamp(value: unknown): string | null {
   return Number.isNaN(date.getTime()) ? null : date.toISOString()
 }
 
+/**
+ * Nome do perfil do remetente. A Meta envia `contacts` ao lado de `messages`, ligando
+ * cada contato ao remetente por `wa_id`. Sem `wa_id`, só aceita um único contato.
+ */
+function contactNameFor(contacts: unknown[], senderWaId: string): string | null {
+  const records = contacts.filter(isRecord)
+  const contact =
+    records.find((candidate) => asId(candidate.wa_id) === senderWaId) ??
+    (records.length === 1 && asId(records[0].wa_id) === null ? records[0] : undefined)
+  if (!contact || !isRecord(contact.profile) || typeof contact.profile.name !== "string") return null
+  const name = contact.profile.name.trim()
+  return name ? name.slice(0, MAX_NAME_LENGTH) : null
+}
+
 function parseMessage(
   raw: unknown,
   businessAccountId: string | null,
   phoneNumberId: string,
+  contacts: unknown[],
 ): WhatsAppMessageEvent | null {
   if (!isRecord(raw)) return null
   const messageId = asId(raw.id)
@@ -86,6 +104,7 @@ function parseMessage(
     timestamp: toIsoTimestamp(raw.timestamp),
     messageType,
     text,
+    contactName: contactNameFor(contacts, senderWaId),
   }
 }
 
@@ -140,8 +159,9 @@ export function parseWhatsAppPayload(payload: unknown): ParsedPayload {
       const phoneNumberId = isRecord(value.metadata) ? asId(value.metadata.phone_number_id) : null
       if (!phoneNumberId) continue
 
+      const contacts = asArray(value.contacts)
       for (const rawMessage of asArray(value.messages)) {
-        const event = parseMessage(rawMessage, businessAccountId, phoneNumberId)
+        const event = parseMessage(rawMessage, businessAccountId, phoneNumberId, contacts)
         if (event) events.push(event)
       }
       for (const rawStatus of asArray(value.statuses)) {
