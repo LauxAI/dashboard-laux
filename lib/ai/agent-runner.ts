@@ -1,20 +1,19 @@
 import "server-only"
 import { stepCountIs, streamText, type ToolSet } from "ai"
 import { buildAgentInstructions } from "@/lib/ai/agent-prompt"
-import { getGeminiModel } from "@/lib/ai/gemini"
+import { createFallbackStream, type AttemptHandle, type FallbackStream } from "@/lib/ai/fallback"
+import { assertGeminiConfigured, getGeminiModel, getGeminiModelChain, GEMINI_PROVIDER_OPTIONS } from "@/lib/ai/gemini"
+import { logAgent, type AgentLogFields } from "@/lib/ai/log"
 import type { ChatMessage } from "@/lib/ai/request"
 import type { SpecialistContext } from "@/lib/ai/specialists"
 import type { AIAgentConfig, AIAgentType } from "@/lib/domain/types"
 
 const MAX_OUTPUT_TOKENS = 1024
-const TIMEOUT_MS = 30_000
+/** Limite de cada tentativa; com o fallback, o pior caso continua dentro de `maxDuration` da rota. */
+const ATTEMPT_TIMEOUT_MS = 22_000
+const START_NEXT_ATTEMPT_BUDGET_MS = 30_000
 
-export type AgentStream = {
-  textStream: AsyncIterable<string>
-  /** Erro ocorrido durante a geração (o `textStream` não propaga erros por si só). */
-  getError: () => unknown
-  usage: () => Promise<{ inputTokens?: number; outputTokens?: number }>
-}
+export type AgentStream = FallbackStream
 
 export type AgentRunInput = {
   type: AIAgentType
@@ -24,7 +23,14 @@ export type AgentRunInput = {
   /** Especialistas habilitados (somente Atendimento) e as ferramentas que eles expõem. */
   specialists?: SpecialistContext
   tools?: ToolSet
+  /**
+   * Ferramentas que alteram dados de verdade. Depois que uma delas roda, a geração
+   * não pode ser refeita em outro modelo. Ausente = toda ferramenta conta como efeito.
+   */
+  sideEffectTools?: string[]
   abortSignal?: AbortSignal
+  /** Identificação apenas para o log estruturado. */
+  logContext?: AgentLogFields
 }
 
 export type AgentReply = { text: string; inputTokens?: number; outputTokens?: number }
@@ -44,35 +50,67 @@ export async function generateAgentReply(input: AgentRunInput): Promise<AgentRep
   return { text: trimmed, ...(await stream.usage()) }
 }
 
-/** Mesmo prompt, modelo e parâmetros de antes; as mensagens do usuário vão somente em `messages`. */
+/** Mesmo prompt e parâmetros para todos os modelos; as mensagens do usuário vão somente em `messages`. */
 export function streamAgent(input: AgentRunInput): AgentStream {
-  let streamError: unknown
+  assertGeminiConfigured()
+  const instructions = buildAgentInstructions(input.type, input.config, input.companyName, input.specialists)
+  const hasTools = Boolean(input.tools && Object.keys(input.tools).length > 0)
 
-  const result = streamText({
-    model: getGeminiModel(),
-    instructions: buildAgentInstructions(input.type, input.config, input.companyName, input.specialists),
-    messages: input.messages,
-    ...(input.tools && Object.keys(input.tools).length > 0 ? { tools: input.tools, stopWhen: stepCountIs(5) } : {}),
-    maxOutputTokens: MAX_OUTPUT_TOKENS,
-    temperature: 0.4,
-    maxRetries: 1,
-    timeout: TIMEOUT_MS,
-    abortSignal: input.abortSignal,
-    onError: ({ error }) => {
-      streamError = error
-    },
-  })
+  const start = (modelId: string): AttemptHandle => {
+    let streamError: unknown
+    let sideEffects = false
 
-  return {
-    textStream: result.textStream,
-    getError: () => streamError,
-    usage: async () => {
-      try {
-        const usage = await result.usage
-        return { inputTokens: usage?.inputTokens, outputTokens: usage?.outputTokens }
-      } catch {
-        return {}
-      }
-    },
+    const result = streamText({
+      model: getGeminiModel(modelId),
+      instructions,
+      messages: input.messages,
+      ...(hasTools ? { tools: input.tools, stopWhen: stepCountIs(5) } : {}),
+      maxOutputTokens: MAX_OUTPUT_TOKENS,
+      temperature: 0.4,
+      providerOptions: GEMINI_PROVIDER_OPTIONS,
+      // O fallback entre modelos já cobre falhas transitórias; evita esperar retries do SDK no mesmo modelo.
+      maxRetries: 0,
+      timeout: ATTEMPT_TIMEOUT_MS,
+      abortSignal: input.abortSignal,
+      onToolExecutionStart: (event: { toolCall: { toolName: string } }) => {
+        const name = event.toolCall.toolName
+        if (!input.sideEffectTools || input.sideEffectTools.includes(name)) sideEffects = true
+      },
+      onError: ({ error }) => {
+        streamError = error
+      },
+    })
+
+    return {
+      textStream: result.textStream,
+      getError: () => streamError,
+      sideEffectsStarted: () => sideEffects,
+      usage: async () => {
+        try {
+          const usage = await result.usage
+          return { inputTokens: usage?.inputTokens, outputTokens: usage?.outputTokens }
+        } catch {
+          return {}
+        }
+      },
+    }
   }
+
+  return createFallbackStream({
+    models: getGeminiModelChain(),
+    start,
+    startBudgetMs: START_NEXT_ATTEMPT_BUDGET_MS,
+    signal: input.abortSignal,
+    onAttemptFailed: (record) =>
+      logAgent(record.willRetry ? "warn" : "error", "tentativa de geração falhou", {
+        ...input.logContext,
+        stage: "generation",
+        model: record.model,
+        code: record.code,
+        status: record.status,
+        ms: record.ms,
+        willRetry: record.willRetry,
+        detail: record.detail,
+      }),
+  })
 }

@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { ToolSet } from "ai"
 import type { SpecialistsConfig } from "@/lib/domain/types"
 import { generateAgentReply, type AgentReply, type AgentRunInput } from "@/lib/ai/agent-runner"
+import { classifyAgentError } from "@/lib/ai/errors"
 import { prepareSpecialists } from "@/lib/ai/specialist-tools"
 import type { SpecialistContext } from "@/lib/ai/specialists"
 import { TEST_LIMITS, type ChatMessage } from "@/lib/ai/request"
@@ -170,7 +171,7 @@ async function run(
       id: inboundMessageId,
       text: inboundText,
     })
-    const { specialists, tools } = await resolveSpecialists({
+    const { specialists, tools, sideEffectTools } = await resolveSpecialists({
       db: deps.db,
       companyId,
       agent,
@@ -184,10 +185,17 @@ async function run(
       messages,
       specialists,
       tools,
+      sideEffectTools,
       abortSignal: AbortSignal.timeout(45_000),
+      logContext: { companyId, agentType: agent.type, mode: "whatsapp" },
     })
   } catch (error) {
-    logWebhook("error", "agent_reply_generation_failed", { ...base, agent_type: agent.type, error: errorName(error) })
+    logWebhook("error", "agent_reply_generation_failed", {
+      ...base,
+      agent_type: agent.type,
+      error: errorName(error),
+      error_code: classifyAgentError(error).code,
+    })
     await safely(() => store.recordUsage({ companyId, agentType: agent.type, status: "error", latencyMs: now() - startedAt }))
     await finalize(store, { companyId, replyId, status: "failed" }, base)
     return { status: "failed", reason: "generation_failed" }
@@ -234,7 +242,7 @@ async function resolveSpecialists(input: {
   agent: { type: string; config: { specialists: Record<string, boolean> } }
   contactPhone: string
   base: Record<string, string>
-}): Promise<{ specialists?: SpecialistContext; tools?: ToolSet }> {
+}): Promise<{ specialists?: SpecialistContext; tools?: ToolSet; sideEffectTools?: string[] }> {
   if (input.agent.type !== "atendimento" || !Object.values(input.agent.config.specialists).some(Boolean)) return {}
   try {
     const db = input.db ?? createAdminClient()
@@ -245,7 +253,7 @@ async function resolveSpecialists(input: {
       // Sem especialistas o Atendimento ainda responde, só com o próprio conhecimento.
       (error) => logWebhook("warn", "agent_reply_specialists_failed", { ...input.base, error: errorName(error) }),
     )
-    return { specialists: prepared.specialists, tools: prepared.tools }
+    return { specialists: prepared.specialists, tools: prepared.tools, sideEffectTools: prepared.sideEffectTools }
   } catch (error) {
     logWebhook("warn", "agent_reply_specialists_failed", { ...input.base, error: errorName(error) })
     return {}

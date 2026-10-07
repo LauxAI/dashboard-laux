@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server"
 import { streamAgent, type AgentStream } from "@/lib/ai/agent-runner"
-import { GeminiNotConfiguredError } from "@/lib/ai/gemini"
+import {
+  agentErrorMessages,
+  classifyAgentError,
+  type AgentErrorCode,
+  type AgentErrorStage,
+} from "@/lib/ai/errors"
+import { logAgent } from "@/lib/ai/log"
 import { parseTestRequest } from "@/lib/ai/request"
 import { prepareSpecialists } from "@/lib/ai/specialist-tools"
 import { encodeStreamEvent, STREAM_CONTENT_TYPE, type AgentStreamEvent } from "@/lib/ai/stream-events"
@@ -10,7 +16,41 @@ import { createClient } from "@/lib/supabase/server"
 
 export const maxDuration = 60
 
-const fail = (status: number, error: string) => NextResponse.json({ error }, { status })
+/** Detalhe técnico (já sem segredos) só aparece fora de produção, para depuração. */
+const showDetail = process.env.NODE_ENV !== "production"
+
+type Failure = { stage: AgentErrorStage; code: string; message: string; retryable?: boolean; detail?: string }
+
+const fail = (status: number, failure: Failure) => {
+  logAgent(status >= 500 ? "error" : "warn", "falha na requisição de teste", {
+    stage: failure.stage,
+    code: failure.code,
+    status,
+    detail: failure.detail,
+  })
+  return NextResponse.json(
+    {
+      error: failure.message,
+      code: failure.code,
+      stage: failure.stage,
+      retryable: failure.retryable ?? false,
+      ...(showDetail && failure.detail ? { detail: failure.detail } : {}),
+    },
+    { status },
+  )
+}
+
+const generationFailure = (error: unknown): Failure & { errorCode: AgentErrorCode } => {
+  const info = classifyAgentError(error)
+  return {
+    stage: "generation",
+    code: info.code,
+    errorCode: info.code,
+    message: agentErrorMessages[info.code],
+    retryable: info.retryable,
+    detail: info.detail,
+  }
+}
 
 /**
  * Teste integrado: o Atendimento conversa e aciona os especialistas habilitados,
@@ -23,20 +63,27 @@ export async function POST(request: Request) {
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) return fail(401, "Sessão expirada. Entre novamente.")
+  if (!user) return fail(401, { stage: "auth", code: "session_expired", message: "Sessão expirada. Entre novamente." })
 
   // O company_id nunca vem da requisição: é resolvido pela sessão.
   const { data: companyId, error: companyError } = await supabase.rpc("current_client_company_id")
-  if (companyError || !companyId) return fail(403, "Sua conta não está vinculada a uma empresa ativa.")
+  if (companyError || !companyId) {
+    return fail(403, {
+      stage: "company",
+      code: "company_not_found",
+      message: "Sua conta não está vinculada a uma empresa ativa.",
+      detail: companyError?.message,
+    })
+  }
 
   let body: unknown
   try {
     body = await request.json()
   } catch {
-    return fail(400, "Requisição inválida.")
+    return fail(400, { stage: "request", code: "invalid_request", message: "Requisição inválida." })
   }
   const parsed = parseTestRequest(body)
-  if ("error" in parsed) return fail(400, parsed.error)
+  if ("error" in parsed) return fail(400, { stage: "request", code: "invalid_request", message: parsed.error })
 
   // O teste usa a configuração salva e aceita o Atendimento inativo, desde que a configuração seja válida.
   const { data: settings } = await supabase
@@ -45,16 +92,26 @@ export async function POST(request: Request) {
     .eq("company_id", companyId)
     .eq("agent_type", "atendimento")
     .maybeSingle()
-  if (!settings) return fail(409, "Salve a configuração do Atendimento antes de testar.")
+  if (!settings) {
+    return fail(409, {
+      stage: "agent_config",
+      code: "agent_not_configured",
+      message: "Salve a configuração do Atendimento antes de testar.",
+    })
+  }
   const config = normalizeAIAgentConfig("atendimento", settings.config)
   if (validateAIAgentConfig("atendimento", config)) {
-    return fail(409, "A configuração do Atendimento está incompleta. Complete e salve para testar.")
+    return fail(409, {
+      stage: "agent_config",
+      code: "agent_incomplete",
+      message: "A configuração do Atendimento está incompleta. Complete e salve para testar.",
+    })
   }
 
   // Limites apenas monitoram: o excesso é registrado, mas não bloqueia a chamada.
   const usage = await readUsage(supabase, user.id)
   if (usage.userExceeded || usage.companyExceeded) {
-    console.warn("[ai-agent] limite de monitoramento excedido", {
+    logAgent("warn", "limite de monitoramento excedido", {
       agentType: "atendimento",
       userExceeded: usage.userExceeded,
       companyExceeded: usage.companyExceeded,
@@ -65,6 +122,7 @@ export async function POST(request: Request) {
 
   const { data: company } = await supabase.from("companies").select("name").eq("id", companyId).maybeSingle()
 
+  const logContext = { companyId, agentType: "atendimento", mode: "teste" }
   let emit: (event: AgentStreamEvent) => void = () => {}
   const prepared = await prepareSpecialists(
     {
@@ -75,7 +133,13 @@ export async function POST(request: Request) {
       onCall: (call) => emit({ type: "specialist", ...call }),
     },
     config.specialists,
-    (error) => console.error("[ai-agent] falha ao carregar especialistas:", error instanceof Error ? error.name : "erro desconhecido"),
+    (error) =>
+      logAgent("error", "falha ao carregar especialistas", {
+        ...logContext,
+        stage: "specialists",
+        code: "specialists_load_failed",
+        detail: error instanceof Error ? error.message : "erro desconhecido",
+      }),
   )
 
   const startedAt = Date.now()
@@ -88,10 +152,12 @@ export async function POST(request: Request) {
       messages: parsed.messages,
       specialists: prepared.specialists,
       tools: prepared.tools,
+      sideEffectTools: prepared.sideEffectTools,
       abortSignal: request.signal,
+      logContext,
     })
   } catch (error) {
-    console.error("[ai-agent] falha ao iniciar resposta:", error instanceof Error ? error.name : "erro desconhecido")
+    const failure = generationFailure(error)
     await recordUsage(supabase, {
       companyId,
       userId: user.id,
@@ -99,8 +165,7 @@ export async function POST(request: Request) {
       status: "error",
       latencyMs: Date.now() - startedAt,
     })
-    if (error instanceof GeminiNotConfiguredError) return fail(502, "O serviço de IA não está configurado.")
-    return fail(502, "Não foi possível gerar a resposta agora. Tente novamente.")
+    return fail(502, failure)
   }
 
   const encoder = new TextEncoder()
@@ -123,19 +188,41 @@ export async function POST(request: Request) {
           send({ type: "delta", text })
         }
         failure = agentStream.getError()
-        if (!failure && !hasText) failure = new Error("Resposta vazia do modelo.")
+        if (!failure && !hasText) failure = new Error("empty_model_response")
       } catch (error) {
         failure = error
       }
 
       const latencyMs = Date.now() - startedAt
       if (failure) {
-        // Nunca registra a chave nem o conteúdo das mensagens.
-        console.error("[ai-agent] falha ao gerar resposta:", failure instanceof Error ? failure.name : "erro desconhecido")
+        const info = generationFailure(failure)
+        logAgent("error", "falha ao gerar resposta", {
+          ...logContext,
+          stage: info.stage,
+          code: info.code,
+          model: agentStream.model(),
+          attempts: agentStream.attempts().length,
+          latencyMs,
+          detail: info.detail,
+        })
         await recordUsage(supabase, { companyId, userId: user.id, agentType: "atendimento", status: "error", latencyMs })
-        emit({ type: "error", error: "Não foi possível gerar a resposta agora. Tente novamente." })
+        emit({
+          type: "error",
+          error: info.message,
+          code: info.code,
+          stage: info.stage,
+          retryable: info.retryable,
+          ...(showDetail && info.detail ? { detail: info.detail } : {}),
+        })
       } else {
         const tokens = await agentStream.usage()
+        const attempts = agentStream.attempts().length
+        logAgent("info", "resposta gerada", {
+          ...logContext,
+          model: agentStream.model(),
+          fallbacks: attempts,
+          latencyMs,
+        })
         await recordUsage(supabase, {
           companyId,
           userId: user.id,
