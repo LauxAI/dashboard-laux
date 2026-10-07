@@ -234,24 +234,23 @@ export interface Appointment {
  * Gemini → Agenda/Supabase). Nenhuma chave de IA trafega pelo navegador.
  * ------------------------------------------------------------------------- */
 
-export type SchedulingTone = "profissional" | "amigavel" | "direto" | "personalizado"
-
 export interface SchedulingAgentBehavior {
   offerAvailableSlots: boolean
+  allowBooking: boolean
+  allowLookup: boolean
   allowConfirmation: boolean
   allowCancellation: boolean
   allowRescheduling: boolean
   askName: boolean
   askPhone: boolean
   askEmail: boolean
+  askService: boolean
 }
 
+/** O Agendamento é um especialista interno: não tem saudação nem tom de voz próprios. */
 export interface SchedulingAgentConfig {
   name: string
   description: string
-  greeting: string
-  tone: SchedulingTone
-  customTone: string
   behavior: SchedulingAgentBehavior
 }
 
@@ -285,6 +284,11 @@ export interface AIAgentProcedure {
   steps: string[]
 }
 
+export type SpecialistKey = "scheduling" | "sales" | "support"
+
+/** Especialistas que o Atendimento pode usar durante as conversas (somente no Atendimento). */
+export type SpecialistsConfig = Record<SpecialistKey, boolean>
+
 export interface AIAgentConfig {
   name: string
   description: string
@@ -305,6 +309,8 @@ export interface AIAgentConfig {
   /** Somente Suporte. */
   procedures: AIAgentProcedure[]
   unresolvedBehavior: string
+  /** Somente Atendimento. */
+  specialists: SpecialistsConfig
 }
 
 export interface AIAgentSettings {

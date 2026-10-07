@@ -5,16 +5,15 @@ import Link from "next/link"
 import { CalendarDays } from "lucide-react"
 import { toast } from "sonner"
 import { saveSchedulingAgentConfig } from "@/app/(dashboard)/agentes/agendamento/actions"
-import { OptionSelect } from "@/components/shared/option-select"
 import { SectionCard } from "@/components/shared/section-card"
 import { SettingToggle } from "@/components/shared/setting-toggle"
 import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { schedulingBehaviorOptions, schedulingTones } from "@/lib/domain/catalogs"
+import { schedulingBehaviorOptions } from "@/lib/domain/catalogs"
 import { defaultSchedulingAgentConfig } from "@/lib/domain/scheduling-agent"
-import type { SchedulingAgentConfig, SchedulingTone } from "@/lib/domain/types"
+import type { SchedulingAgentConfig } from "@/lib/domain/types"
 
 export function SchedulingAgentForm({
   initialConfig = defaultSchedulingAgentConfig,
@@ -44,7 +43,7 @@ export function SchedulingAgentForm({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-      <SectionCard title="Identidade" description="Como o agente se apresenta aos seus clientes">
+      <SectionCard title="Identidade" description="Especialista interno usado pelo Atendimento. Ele não conversa diretamente com o cliente.">
         <FieldGroup>
           <Field>
             <FieldLabel htmlFor="agent-name">Nome do agente</FieldLabel>
@@ -67,47 +66,6 @@ export function SchedulingAgentForm({
               maxLength={500}
             />
           </Field>
-          <Field>
-            <FieldLabel htmlFor="agent-greeting">Mensagem inicial</FieldLabel>
-            <Textarea
-              id="agent-greeting"
-              value={config.greeting}
-              onChange={(event) => update("greeting", event.target.value)}
-              placeholder="Ex.: Olá! Posso ajudar você a marcar um horário."
-              rows={3}
-              maxLength={500}
-            />
-            <FieldDescription>Primeira mensagem enviada quando o cliente inicia a conversa.</FieldDescription>
-          </Field>
-        </FieldGroup>
-      </SectionCard>
-
-      <SectionCard title="Tom de voz" description="O estilo de linguagem usado nas respostas">
-        <FieldGroup>
-          <Field>
-            <FieldLabel htmlFor="agent-tone">Tom</FieldLabel>
-            <OptionSelect
-              name="tone"
-              value={config.tone}
-              onValueChange={(value) => update("tone", (value || "profissional") as SchedulingTone)}
-              options={schedulingTones}
-              ariaLabel="Tom de voz"
-              className="sm:w-64"
-            />
-          </Field>
-          {config.tone === "personalizado" && (
-            <Field>
-              <FieldLabel htmlFor="agent-custom-tone">Descreva o tom</FieldLabel>
-              <Textarea
-                id="agent-custom-tone"
-                value={config.customTone}
-                onChange={(event) => update("customTone", event.target.value)}
-                placeholder="Ex.: Acolhedor, usa frases curtas e evita termos técnicos."
-                rows={3}
-                maxLength={500}
-              />
-            </Field>
-          )}
         </FieldGroup>
       </SectionCard>
 

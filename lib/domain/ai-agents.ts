@@ -1,4 +1,6 @@
 import type {
+  SpecialistKey,
+  SpecialistsConfig,
   AIAgentConfig,
   AIAgentOffering,
   AIAgentProcedure,
@@ -8,6 +10,13 @@ import type {
 } from "./types"
 
 export const aiAgentTypes: AIAgentType[] = ["atendimento", "vendas", "suporte"]
+export const specialistKeys: SpecialistKey[] = ["scheduling", "sales", "support"]
+
+export const defaultSpecialists: SpecialistsConfig = { scheduling: false, sales: false, support: false }
+
+/** Agente de cada especialista dentro de `ai_agent_settings` (Agendamento tem tabela própria). */
+export const specialistAgentType: Record<"sales" | "support", AIAgentType> = { sales: "vendas", support: "suporte" }
+
 export const aiAgentToneValues: AIAgentTone[] = ["profissional", "amigavel", "direto", "personalizado"]
 
 export const AI_AGENT_LIMITS = {
@@ -54,6 +63,21 @@ export const defaultAIAgentConfig: AIAgentConfig = {
   objectionHandling: "",
   procedures: [],
   unresolvedBehavior: "",
+  specialists: { ...defaultSpecialists },
+}
+
+/** Vendas e Suporte são especialistas internos: só o Atendimento conversa com o cliente. */
+export function isSpecialistAgentType(type: AIAgentType): boolean {
+  return type !== "atendimento"
+}
+
+export function normalizeSpecialists(value: unknown): SpecialistsConfig {
+  const raw = asObject(value)
+  return {
+    scheduling: raw.scheduling === true,
+    sales: raw.sales === true,
+    support: raw.support === true,
+  }
 }
 
 export function isAIAgentType(value: unknown): value is AIAgentType {
@@ -127,7 +151,7 @@ export function normalizeAIAgentConfig(type: AIAgentType, input: unknown): AIAge
     customTone: tone === "personalizado" ? text(raw.customTone, AI_AGENT_LIMITS.customTone) : "",
     rules: textList(raw.rules, AI_AGENT_LIMITS.rules, AI_AGENT_LIMITS.rule),
     knowledge: text(raw.knowledge, AI_AGENT_LIMITS.knowledge),
-    greeting: text(raw.greeting, AI_AGENT_LIMITS.greeting),
+    greeting: type === "atendimento" ? text(raw.greeting, AI_AGENT_LIMITS.greeting) : "",
     fallbackBehavior: text(raw.fallbackBehavior, AI_AGENT_LIMITS.fallbackBehavior),
     handoff: {
       enabled: handoffEnabled,
@@ -138,6 +162,7 @@ export function normalizeAIAgentConfig(type: AIAgentType, input: unknown): AIAge
     objectionHandling: type === "vendas" ? text(raw.objectionHandling, AI_AGENT_LIMITS.objectionHandling) : "",
     procedures: type === "suporte" ? normalizeProcedures(raw.procedures) : [],
     unresolvedBehavior: type === "suporte" ? text(raw.unresolvedBehavior, AI_AGENT_LIMITS.unresolvedBehavior) : "",
+    specialists: type === "atendimento" ? normalizeSpecialists(raw.specialists) : { ...defaultSpecialists },
   }
 }
 

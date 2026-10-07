@@ -36,7 +36,6 @@ import type {
   AIAgentTone,
   AIAgentType,
   SchedulingAgentBehavior,
-  SchedulingTone,
   WeekdayKey,
   AgentTone,
   AutomationActionType,
@@ -360,13 +359,6 @@ export const weekDays: Option<string>[] = [
 ]
 
 /* --------------------------- Agente de Agendamento -------------------------- */
-
-export const schedulingTones: Option<SchedulingTone>[] = [
-  { value: "profissional", label: "Profissional" },
-  { value: "amigavel", label: "Amigável" },
-  { value: "direto", label: "Direto" },
-  { value: "personalizado", label: "Personalizado" },
-]
 
 export const schedulingBehaviorOptions: {
   key: keyof SchedulingAgentBehavior

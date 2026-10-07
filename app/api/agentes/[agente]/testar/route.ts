@@ -3,6 +3,7 @@ import { streamAgent, type AgentStream } from "@/lib/ai/agent-runner"
 import { GeminiNotConfiguredError } from "@/lib/ai/gemini"
 import { parseTestRequest } from "@/lib/ai/request"
 import { encodeStreamEvent, STREAM_CONTENT_TYPE, type AgentStreamEvent } from "@/lib/ai/stream-events"
+import { buildSchedulingTools, loadSpecialistContext } from "@/lib/ai/specialist-tools"
 import { readUsage, recordUsage } from "@/lib/ai/usage"
 import { isAIAgentType, normalizeAIAgentConfig, validateAIAgentConfig } from "@/lib/domain/ai-agents"
 import { createClient } from "@/lib/supabase/server"
@@ -61,6 +62,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
 
   const { data: company } = await supabase.from("companies").select("name").eq("id", companyId).maybeSingle()
 
+  // Especialistas só valem para o Atendimento. No teste, consultas são reais e ações são simuladas.
+  const specialists =
+    agente === "atendimento" && Object.values(config.specialists).some(Boolean)
+      ? await loadSpecialistContext(supabase, companyId, config.specialists).catch(() => undefined)
+      : undefined
+  const tools = specialists?.scheduling
+    ? buildSchedulingTools(specialists.scheduling, { db: supabase, companyId, contactPhone: null, dryRun: true })
+    : undefined
+
   const startedAt = Date.now()
   let agentStream: AgentStream
   try {
@@ -69,6 +79,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ age
       config,
       companyName: company?.name ?? null,
       messages: parsed.messages,
+      specialists,
+      tools,
       abortSignal: request.signal,
     })
   } catch (error) {

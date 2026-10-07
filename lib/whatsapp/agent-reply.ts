@@ -1,7 +1,12 @@
 import "server-only"
 import type { SupabaseClient } from "@supabase/supabase-js"
+import type { ToolSet } from "ai"
+import type { SpecialistsConfig } from "@/lib/domain/types"
 import { generateAgentReply, type AgentReply, type AgentRunInput } from "@/lib/ai/agent-runner"
+import { buildSchedulingTools, loadSpecialistContext } from "@/lib/ai/specialist-tools"
+import type { SpecialistContext } from "@/lib/ai/specialists"
 import { TEST_LIMITS, type ChatMessage } from "@/lib/ai/request"
+import { createAdminClient } from "@/lib/supabase/admin"
 import type { WhatsAppMessage } from "./conversations"
 import { logWebhook } from "./log"
 import { createReplyStore, type ReplyStore } from "./reply-store"
@@ -165,11 +170,20 @@ async function run(
       id: inboundMessageId,
       text: inboundText,
     })
+    const { specialists, tools } = await resolveSpecialists({
+      db: deps.db,
+      companyId,
+      agent,
+      contactPhone: replyContext.contactPhone,
+      base,
+    })
     reply = await generate({
       type: agent.type,
       config: agent.config,
       companyName: agent.companyName,
       messages,
+      specialists,
+      tools,
       abortSignal: AbortSignal.timeout(45_000),
     })
   } catch (error) {
@@ -212,6 +226,28 @@ async function run(
   // A mensagem já foi entregue ao cliente; se o registro falhar, a reserva continua
   // impedindo um segundo envio.
   return stored ? { status: "sent", replyId } : { status: "failed", reason: "finalize_failed" }
+}
+
+async function resolveSpecialists(input: {
+  db?: SupabaseClient
+  companyId: string
+  agent: { type: string; config: { specialists: Record<string, boolean> } }
+  contactPhone: string
+  base: Record<string, string>
+}): Promise<{ specialists?: SpecialistContext; tools?: ToolSet }> {
+  if (input.agent.type !== "atendimento" || !Object.values(input.agent.config.specialists).some(Boolean)) return {}
+  try {
+    const db = input.db ?? createAdminClient()
+    const specialists = await loadSpecialistContext(db, input.companyId, input.agent.config.specialists as SpecialistsConfig)
+    const tools = specialists.scheduling
+      ? buildSchedulingTools(specialists.scheduling, { db, companyId: input.companyId, contactPhone: input.contactPhone, dryRun: false })
+      : undefined
+    return { specialists, tools }
+  } catch (error) {
+    // Sem especialistas o Atendimento ainda responde, só com o próprio conhecimento.
+    logWebhook("warn", "agent_reply_specialists_failed", { ...input.base, error: errorName(error) })
+    return {}
+  }
 }
 
 function skip(reason: Extract<AgentReplyResult, { status: "skipped" }>["reason"], base: Record<string, string>): AgentReplyResult {
