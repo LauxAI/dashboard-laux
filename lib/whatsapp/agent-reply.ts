@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { ToolSet } from "ai"
 import type { SpecialistsConfig } from "@/lib/domain/types"
 import { generateAgentReply, type AgentReply, type AgentRunInput } from "@/lib/ai/agent-runner"
-import { buildSchedulingTools, loadSpecialistContext } from "@/lib/ai/specialist-tools"
+import { prepareSpecialists } from "@/lib/ai/specialist-tools"
 import type { SpecialistContext } from "@/lib/ai/specialists"
 import { TEST_LIMITS, type ChatMessage } from "@/lib/ai/request"
 import { createAdminClient } from "@/lib/supabase/admin"
@@ -238,13 +238,15 @@ async function resolveSpecialists(input: {
   if (input.agent.type !== "atendimento" || !Object.values(input.agent.config.specialists).some(Boolean)) return {}
   try {
     const db = input.db ?? createAdminClient()
-    const specialists = await loadSpecialistContext(db, input.companyId, input.agent.config.specialists as SpecialistsConfig)
-    const tools = specialists.scheduling
-      ? buildSchedulingTools(specialists.scheduling, { db, companyId: input.companyId, contactPhone: input.contactPhone, dryRun: false })
-      : undefined
-    return { specialists, tools }
+    // Mesmo caminho do teste integrado; aqui as ações são reais (dryRun: false).
+    const prepared = await prepareSpecialists(
+      { db, companyId: input.companyId, contactPhone: input.contactPhone, dryRun: false },
+      input.agent.config.specialists as SpecialistsConfig,
+      // Sem especialistas o Atendimento ainda responde, só com o próprio conhecimento.
+      (error) => logWebhook("warn", "agent_reply_specialists_failed", { ...input.base, error: errorName(error) }),
+    )
+    return { specialists: prepared.specialists, tools: prepared.tools }
   } catch (error) {
-    // Sem especialistas o Atendimento ainda responde, só com o próprio conhecimento.
     logWebhook("warn", "agent_reply_specialists_failed", { ...input.base, error: errorName(error) })
     return {}
   }

@@ -54,7 +54,7 @@ export function SchedulingAgentCard({ initialStatus = "inativo" }: { initialStat
               </Badge>
             </div>
             <CardDescription className="text-pretty leading-relaxed">
-              Automatize o agendamento de clientes usando inteligência artificial.
+              Gerencia horários e compromissos.
             </CardDescription>
           </div>
         </div>

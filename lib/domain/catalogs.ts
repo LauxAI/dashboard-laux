@@ -429,19 +429,19 @@ export const aiAgentCatalog: Record<
 > = {
   atendimento: {
     name: "Agente de Atendimento",
-    description: "Responde dúvidas frequentes e direciona o cliente para a equipe certa.",
+    description: "Responsável pelas conversas com seus clientes.",
     icon: MessagesSquare,
     highlights: ["Responde com a sua base de conhecimento", "Segue as regras e o tom definidos", "Transfere para a equipe quando precisar"],
   },
   vendas: {
     name: "Agente de Vendas",
-    description: "Qualifica leads e conduz o contato até a proposta.",
+    description: "Auxilia na qualificação e conversão de oportunidades.",
     icon: Zap,
     highlights: ["Apresenta apenas os seus produtos e serviços", "Qualifica o interesse do contato", "Trata objeções com a sua abordagem"],
   },
   suporte: {
     name: "Agente de Suporte",
-    description: "Resolve solicitações de suporte e abre chamados quando necessário.",
+    description: "Resolve dúvidas e problemas dos clientes.",
     icon: UserRoundCog,
     highlights: ["Segue os procedimentos cadastrados", "Guia o cliente passo a passo", "Encaminha o que não conseguir resolver"],
   },
