@@ -276,6 +276,18 @@ describe("processWhatsAppAgentReply", () => {
   })
 })
 
+describe("especialistas internos", () => {
+  it("somente o Atendimento é elegível para conversar com o cliente", async () => {
+    const { AGENT_PRIORITY } = await import("./reply-store")
+    expect(AGENT_PRIORITY).toEqual(["atendimento"])
+  })
+
+  it("Vendas e Suporte só atuam via Atendimento, nunca como agente principal", () => {
+    const source = readFileSync(join(process.cwd(), "lib/whatsapp/agent-reply.ts"), "utf8")
+    expect(source).toContain('input.agent.type !== "atendimento"')
+  })
+})
+
 describe("buildConversationHistory", () => {
   const user = (id: string, text: string, at: string) => message({ id, text_content: text, created_at: at })
   const bot = (id: string, text: string, at: string, status: WhatsAppMessage["status"] = "sent") =>

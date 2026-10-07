@@ -1,33 +1,35 @@
-import type { SchedulingAgentBehavior, SchedulingAgentConfig, SchedulingAgentStatus, SchedulingTone } from "./types"
-
-export const schedulingToneValues: SchedulingTone[] = ["profissional", "amigavel", "direto", "personalizado"]
+import type { SchedulingAgentBehavior, SchedulingAgentConfig, SchedulingAgentStatus } from "./types"
 
 export const schedulingBehaviorKeys: (keyof SchedulingAgentBehavior)[] = [
   "offerAvailableSlots",
+  "allowBooking",
+  "allowLookup",
   "allowConfirmation",
   "allowCancellation",
   "allowRescheduling",
   "askName",
   "askPhone",
   "askEmail",
+  "askService",
 ]
 
-export const SCHEDULING_AGENT_LIMITS = { name: 80, description: 500, greeting: 500, customTone: 500 } as const
+export const SCHEDULING_AGENT_LIMITS = { name: 80, description: 500 } as const
 
 export const defaultSchedulingAgentConfig: SchedulingAgentConfig = {
-  name: "",
-  description: "",
-  greeting: "",
-  tone: "profissional",
-  customTone: "",
+  name: "Especialista de Agendamento",
+  description:
+    "Especialista responsável por consultar disponibilidade e gerenciar agendamentos durante os atendimentos.",
   behavior: {
-    offerAvailableSlots: false,
+    offerAvailableSlots: true,
+    allowBooking: true,
+    allowLookup: true,
     allowConfirmation: false,
     allowCancellation: false,
     allowRescheduling: false,
-    askName: false,
-    askPhone: false,
+    askName: true,
+    askPhone: true,
     askEmail: false,
+    askService: true,
   },
 }
 
@@ -35,25 +37,22 @@ const text = (value: unknown, max: number) => (typeof value === "string" ? value
 
 /**
  * Converte qualquer valor (jsonb vindo do banco ou payload do cliente) numa
- * configuração válida, descartando chaves desconhecidas e tipos incorretos.
+ * configuração válida, descartando chaves desconhecidas (inclusive a saudação e o
+ * tom de voz legados) e tipos incorretos. Configurações antigas sem as
+ * capacidades `allowBooking`/`allowLookup` herdam de `offerAvailableSlots`.
  */
 export function normalizeSchedulingAgentConfig(input: unknown): SchedulingAgentConfig {
   const raw = (input && typeof input === "object" ? input : {}) as Record<string, unknown>
   const rawBehavior = (raw.behavior && typeof raw.behavior === "object" ? raw.behavior : {}) as Record<string, unknown>
 
-  const behavior = { ...defaultSchedulingAgentConfig.behavior }
+  const behavior = {} as SchedulingAgentBehavior
   for (const key of schedulingBehaviorKeys) behavior[key] = rawBehavior[key] === true
-
-  const tone = schedulingToneValues.includes(raw.tone as SchedulingTone)
-    ? (raw.tone as SchedulingTone)
-    : defaultSchedulingAgentConfig.tone
+  if (typeof rawBehavior.allowBooking !== "boolean") behavior.allowBooking = behavior.offerAvailableSlots
+  if (typeof rawBehavior.allowLookup !== "boolean") behavior.allowLookup = behavior.offerAvailableSlots
 
   return {
     name: text(raw.name, SCHEDULING_AGENT_LIMITS.name),
     description: text(raw.description, SCHEDULING_AGENT_LIMITS.description),
-    greeting: text(raw.greeting, SCHEDULING_AGENT_LIMITS.greeting),
-    tone,
-    customTone: tone === "personalizado" ? text(raw.customTone, SCHEDULING_AGENT_LIMITS.customTone) : "",
     behavior,
   }
 }
@@ -64,7 +63,6 @@ export function normalizeSchedulingAgentStatus(value: unknown): SchedulingAgentS
 
 /** Retorna a mensagem de erro de validação, ou null quando a configuração é válida. */
 export function validateSchedulingAgentConfig(config: SchedulingAgentConfig): string | null {
-  if (!config.name) return "Informe o nome do agente."
-  if (config.tone === "personalizado" && !config.customTone) return "Descreva o tom de voz personalizado."
+  if (!config.name) return "Informe o nome do especialista."
   return null
 }

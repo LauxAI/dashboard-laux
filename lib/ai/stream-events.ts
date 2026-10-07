@@ -1,7 +1,11 @@
 export type StreamUsageFlags = { userExceeded: boolean; companyExceeded: boolean }
 
+export type StreamSpecialistKey = "scheduling" | "sales" | "support"
+const specialistKeys: StreamSpecialistKey[] = ["scheduling", "sales", "support"]
+
 export type AgentStreamEvent =
   | { type: "delta"; text: string }
+  | { type: "specialist"; specialist: StreamSpecialistKey; tool: string; success: boolean }
   | { type: "done"; usage: StreamUsageFlags }
   | { type: "error"; error: string }
 
@@ -24,6 +28,15 @@ export function parseStreamLine(line: string): AgentStreamEvent | null {
   const event = value as Record<string, unknown>
 
   if (event.type === "delta" && typeof event.text === "string") return { type: "delta", text: event.text }
+  if (
+    event.type === "specialist" &&
+    typeof event.specialist === "string" &&
+    specialistKeys.includes(event.specialist as StreamSpecialistKey) &&
+    typeof event.tool === "string" &&
+    typeof event.success === "boolean"
+  ) {
+    return { type: "specialist", specialist: event.specialist as StreamSpecialistKey, tool: event.tool, success: event.success }
+  }
   if (event.type === "error" && typeof event.error === "string") return { type: "error", error: event.error }
   if (event.type === "done" && event.usage && typeof event.usage === "object") {
     const usage = event.usage as Record<string, unknown>

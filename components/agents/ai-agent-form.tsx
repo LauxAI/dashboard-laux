@@ -11,9 +11,9 @@ import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { AI_AGENT_LIMITS, normalizeAIAgentConfig, validateAIAgentConfig } from "@/lib/domain/ai-agents"
+import { AI_AGENT_LIMITS, hasGreetingField, normalizeAIAgentConfig, validateAIAgentConfig } from "@/lib/domain/ai-agents"
 import { aiAgentTones } from "@/lib/domain/catalogs"
-import type { AIAgentConfig, AIAgentTone, AIAgentType } from "@/lib/domain/types"
+import type { AIAgentConfig, AIAgentTone, AIAgentType, SpecialistKey } from "@/lib/domain/types"
 
 const knowledgeCopy: Record<AIAgentType, { title: string; placeholder: string; description: string }> = {
   atendimento: {
@@ -32,6 +32,24 @@ const knowledgeCopy: Record<AIAgentType, { title: string; placeholder: string; d
     description: "Informações que o agente consulta ao ajudar o cliente.",
   },
 }
+
+const specialistOptions: { key: SpecialistKey; label: string; description: string }[] = [
+  {
+    key: "scheduling",
+    label: "Agendamento",
+    description: "Consulta horários e cria, confirma, cancela ou remarca agendamentos. Exige o especialista ativo em Agendamento.",
+  },
+  {
+    key: "sales",
+    label: "Vendas",
+    description: "Usa produtos, preços e abordagem comercial quando o cliente quer comprar. Exige o agente de Vendas ativo.",
+  },
+  {
+    key: "support",
+    label: "Suporte",
+    description: "Usa procedimentos e base de suporte quando o cliente tem um problema. Exige o agente de Suporte ativo.",
+  },
+]
 
 export function AIAgentForm({ type, initialConfig }: { type: AIAgentType; initialConfig: AIAgentConfig }) {
   const [config, setConfig] = useState(initialConfig)
@@ -94,17 +112,19 @@ export function AIAgentForm({ type, initialConfig }: { type: AIAgentType; initia
               required
             />
           </Field>
-          <Field>
-            <FieldLabel htmlFor="agent-greeting">Mensagem inicial</FieldLabel>
-            <Textarea
-              id="agent-greeting"
-              value={config.greeting}
-              onChange={(event) => update("greeting", event.target.value)}
-              placeholder="Ex.: Olá! Como posso ajudar?"
-              rows={2}
-              maxLength={AI_AGENT_LIMITS.greeting}
-            />
-          </Field>
+          {hasGreetingField(type) && (
+            <Field>
+              <FieldLabel htmlFor="agent-greeting">Mensagem inicial</FieldLabel>
+              <Textarea
+                id="agent-greeting"
+                value={config.greeting}
+                onChange={(event) => update("greeting", event.target.value)}
+                placeholder="Ex.: Olá! Como posso ajudar?"
+                rows={2}
+                maxLength={AI_AGENT_LIMITS.greeting}
+              />
+            </Field>
+          )}
         </FieldGroup>
       </SectionCard>
 
@@ -180,6 +200,26 @@ export function AIAgentForm({ type, initialConfig }: { type: AIAgentType; initia
 
       {type === "vendas" && <OfferingsSection config={config} update={update} />}
       {type === "suporte" && <ProceduresSection config={config} update={update} />}
+
+      {type === "atendimento" && (
+        <SectionCard
+          title="Especialistas"
+          description="O Atendimento é o único que conversa com o cliente. Ele pode recorrer a especialistas ativos e configurados."
+          contentClassName="flex flex-col"
+        >
+          <div className="flex flex-col divide-y divide-border">
+            {specialistOptions.map((option) => (
+              <SettingToggle
+                key={option.key}
+                label={option.label}
+                description={option.description}
+                checked={config.specialists[option.key]}
+                onCheckedChange={(checked) => update("specialists", { ...config.specialists, [option.key]: checked })}
+              />
+            ))}
+          </div>
+        </SectionCard>
+      )}
 
       <SectionCard title="Regras" description="Limites que o agente sempre deve respeitar">
         <StringList

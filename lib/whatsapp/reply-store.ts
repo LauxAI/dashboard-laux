@@ -20,8 +20,8 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 const PHONE_PATTERN = /^\+?[0-9]{7,20}$/
 const UNIQUE_VIOLATION = "23505"
 
-/** Ordem de preferência quando a empresa tem mais de um agente ativo e válido. */
-export const AGENT_PRIORITY: AIAgentType[] = ["atendimento", "vendas", "suporte"]
+/** Somente o Atendimento conversa com o cliente; Vendas e Suporte são especialistas internos dele. */
+export const AGENT_PRIORITY: AIAgentType[] = ["atendimento"]
 
 export type ReplyContext = {
   conversationStatus: WhatsAppConversationStatus

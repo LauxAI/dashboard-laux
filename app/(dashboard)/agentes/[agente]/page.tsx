@@ -2,10 +2,9 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { ChevronLeft } from "lucide-react"
 import { AIAgentForm } from "@/components/agents/ai-agent-form"
-import { AIAgentPlayground } from "@/components/agents/ai-agent-playground"
 import { PageHeader } from "@/components/shared/page-header"
 import { getAIAgentSettings, getCompany } from "@/lib/data/queries"
-import { isAIAgentType, validateAIAgentConfig } from "@/lib/domain/ai-agents"
+import { isAIAgentType } from "@/lib/domain/ai-agents"
 import { aiAgentCatalog } from "@/lib/domain/catalogs"
 import { defaultAIAgentConfig } from "@/lib/domain/ai-agents"
 
@@ -21,7 +20,6 @@ export default async function AIAgentPage({ params }: { params: Promise<{ agente
   const [company, allSettings] = await Promise.all([getCompany(), getAIAgentSettings()])
   const settings = allSettings[agente]
   const catalog = aiAgentCatalog[agente]
-  const canTest = Boolean(settings) && validateAIAgentConfig(agente, settings!.config) === null
 
   return (
     <div className="flex flex-col gap-6">
@@ -40,12 +38,7 @@ export default async function AIAgentPage({ params }: { params: Promise<{ agente
             : "Defina como o agente atua pela sua empresa"
         }
       />
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_26rem]">
-        <AIAgentForm type={agente} initialConfig={settings?.config ?? defaultAIAgentConfig} />
-        <div className="xl:sticky xl:top-6">
-          <AIAgentPlayground type={agente} canTest={canTest} agentName={settings?.config.name || catalog.name} />
-        </div>
-      </div>
+      <AIAgentForm type={agente} initialConfig={settings?.config ?? defaultAIAgentConfig} />
     </div>
   )
 }

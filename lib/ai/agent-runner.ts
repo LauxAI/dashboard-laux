@@ -1,8 +1,9 @@
 import "server-only"
-import { streamText } from "ai"
+import { stepCountIs, streamText, type ToolSet } from "ai"
 import { buildAgentInstructions } from "@/lib/ai/agent-prompt"
 import { getGeminiModel } from "@/lib/ai/gemini"
 import type { ChatMessage } from "@/lib/ai/request"
+import type { SpecialistContext } from "@/lib/ai/specialists"
 import type { AIAgentConfig, AIAgentType } from "@/lib/domain/types"
 
 const MAX_OUTPUT_TOKENS = 1024
@@ -20,6 +21,9 @@ export type AgentRunInput = {
   config: AIAgentConfig
   companyName?: string | null
   messages: ChatMessage[]
+  /** Especialistas habilitados (somente Atendimento) e as ferramentas que eles expõem. */
+  specialists?: SpecialistContext
+  tools?: ToolSet
   abortSignal?: AbortSignal
 }
 
@@ -46,8 +50,9 @@ export function streamAgent(input: AgentRunInput): AgentStream {
 
   const result = streamText({
     model: getGeminiModel(),
-    instructions: buildAgentInstructions(input.type, input.config, input.companyName),
+    instructions: buildAgentInstructions(input.type, input.config, input.companyName, input.specialists),
     messages: input.messages,
+    ...(input.tools && Object.keys(input.tools).length > 0 ? { tools: input.tools, stopWhen: stepCountIs(5) } : {}),
     maxOutputTokens: MAX_OUTPUT_TOKENS,
     temperature: 0.4,
     maxRetries: 1,
