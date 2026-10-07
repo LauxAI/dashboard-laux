@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { AI_AGENT_LIMITS, normalizeAIAgentConfig, validateAIAgentConfig } from "@/lib/domain/ai-agents"
+import { AI_AGENT_LIMITS, hasGreetingField, normalizeAIAgentConfig, validateAIAgentConfig } from "@/lib/domain/ai-agents"
 import { aiAgentTones } from "@/lib/domain/catalogs"
 import type { AIAgentConfig, AIAgentTone, AIAgentType, SpecialistKey } from "@/lib/domain/types"
 
@@ -112,17 +112,19 @@ export function AIAgentForm({ type, initialConfig }: { type: AIAgentType; initia
               required
             />
           </Field>
-          <Field>
-            <FieldLabel htmlFor="agent-greeting">Mensagem inicial</FieldLabel>
-            <Textarea
-              id="agent-greeting"
-              value={config.greeting}
-              onChange={(event) => update("greeting", event.target.value)}
-              placeholder="Ex.: Olá! Como posso ajudar?"
-              rows={2}
-              maxLength={AI_AGENT_LIMITS.greeting}
-            />
-          </Field>
+          {hasGreetingField(type) && (
+            <Field>
+              <FieldLabel htmlFor="agent-greeting">Mensagem inicial</FieldLabel>
+              <Textarea
+                id="agent-greeting"
+                value={config.greeting}
+                onChange={(event) => update("greeting", event.target.value)}
+                placeholder="Ex.: Olá! Como posso ajudar?"
+                rows={2}
+                maxLength={AI_AGENT_LIMITS.greeting}
+              />
+            </Field>
+          )}
         </FieldGroup>
       </SectionCard>
 

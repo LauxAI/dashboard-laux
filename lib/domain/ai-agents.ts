@@ -130,6 +130,11 @@ function normalizeProcedures(value: unknown): AIAgentProcedure[] {
     .slice(0, AI_AGENT_LIMITS.procedures)
 }
 
+/** Só o Atendimento conversa diretamente com o cliente; especialistas nunca têm mensagem inicial. */
+export function hasGreetingField(type: AIAgentType): boolean {
+  return type === "atendimento"
+}
+
 /**
  * Converte qualquer valor (jsonb do banco ou payload do cliente) numa
  * configuração válida para o tipo, descartando chaves, tipos e campos de
@@ -151,7 +156,7 @@ export function normalizeAIAgentConfig(type: AIAgentType, input: unknown): AIAge
     customTone: tone === "personalizado" ? text(raw.customTone, AI_AGENT_LIMITS.customTone) : "",
     rules: textList(raw.rules, AI_AGENT_LIMITS.rules, AI_AGENT_LIMITS.rule),
     knowledge: text(raw.knowledge, AI_AGENT_LIMITS.knowledge),
-    greeting: type === "atendimento" ? text(raw.greeting, AI_AGENT_LIMITS.greeting) : "",
+    greeting: hasGreetingField(type) ? text(raw.greeting, AI_AGENT_LIMITS.greeting) : "",
     fallbackBehavior: text(raw.fallbackBehavior, AI_AGENT_LIMITS.fallbackBehavior),
     handoff: {
       enabled: handoffEnabled,

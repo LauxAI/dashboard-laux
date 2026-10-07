@@ -1,7 +1,10 @@
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import {
   AI_AGENT_LIMITS,
   defaultAIAgentConfig,
+  hasGreetingField,
   isAIAgentType,
   normalizeAIAgentConfig,
   normalizeAIAgentStatus,
@@ -105,6 +108,67 @@ describe("normalizeAIAgentConfig", () => {
   it("é idempotente", () => {
     const once = normalizeAIAgentConfig("vendas", { ...base, offerings: [{ name: " A " }], rules: [" r "] })
     expect(normalizeAIAgentConfig("vendas", once)).toEqual(once)
+  })
+})
+
+describe("mensagem inicial", () => {
+  const read = (path: string) => readFileSync(join(process.cwd(), path), "utf8")
+
+  it("somente o Atendimento possui o campo de mensagem inicial", () => {
+    expect(hasGreetingField("atendimento")).toBe(true)
+    expect(hasGreetingField("vendas")).toBe(false)
+    expect(hasGreetingField("suporte")).toBe(false)
+  })
+
+  it("o Atendimento mantém a mensagem inicial normalizada", () => {
+    expect(normalizeAIAgentConfig("atendimento", { greeting: "  Olá!  " }).greeting).toBe("Olá!")
+    const long = normalizeAIAgentConfig("atendimento", { greeting: "x".repeat(AI_AGENT_LIMITS.greeting + 20) })
+    expect(long.greeting).toHaveLength(AI_AGENT_LIMITS.greeting)
+  })
+
+  it("Vendas e Suporte descartam qualquer mensagem inicial vinda de configurações antigas", () => {
+    expect(normalizeAIAgentConfig("vendas", { ...base, greeting: "Olá, vim vender!" }).greeting).toBe("")
+    expect(normalizeAIAgentConfig("suporte", { ...base, greeting: "Olá, vim ajudar!" }).greeting).toBe("")
+  })
+
+  it("preserva as demais configurações de Vendas e Suporte", () => {
+    const sales = normalizeAIAgentConfig("vendas", {
+      ...base,
+      greeting: "x",
+      knowledge: "Garantia de 1 ano",
+      offerings: [{ name: "Plano" }],
+      salesApproach: "consultiva",
+    })
+    expect(sales).toMatchObject({ knowledge: "Garantia de 1 ano", salesApproach: "consultiva" })
+    expect(sales.offerings).toHaveLength(1)
+
+    const support = normalizeAIAgentConfig("suporte", {
+      ...base,
+      greeting: "x",
+      procedures: [{ title: "Reset", steps: ["a"] }],
+      unresolvedBehavior: "encaminhar",
+    })
+    expect(support).toMatchObject({ unresolvedBehavior: "encaminhar" })
+    expect(support.procedures).toHaveLength(1)
+  })
+
+  it("a UI só renderiza o campo quando o tipo possui mensagem inicial", () => {
+    const form = read("components/agents/ai-agent-form.tsx")
+    expect(form).toContain("hasGreetingField(type) && (")
+    expect(form.match(/Mensagem inicial/g)).toHaveLength(1)
+    const [beforeLabel] = form.split("Mensagem inicial")
+    expect(beforeLabel.trimEnd().endsWith("<FieldLabel htmlFor=\"agent-greeting\">")).toBe(true)
+    expect(beforeLabel.lastIndexOf("hasGreetingField(type) && (")).toBeGreaterThan(beforeLabel.lastIndexOf("</Field>"))
+  })
+
+  it("Agendamento não tem mensagem inicial na UI", () => {
+    expect(read("components/agents/scheduling-agent-form.tsx")).not.toMatch(/Mensagem inicial|greeting/)
+  })
+
+  it("nenhuma camada de execução usa a mensagem inicial como fala do agente", () => {
+    for (const file of ["lib/ai/agent-prompt.ts", "lib/ai/agent-runner.ts", "lib/ai/specialists.ts", "lib/ai/specialist-tools.ts"]) {
+      expect(read(file)).not.toMatch(/greeting/)
+    }
   })
 })
 
