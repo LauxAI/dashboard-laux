@@ -7,7 +7,7 @@ export type AgentStreamEvent =
   | { type: "delta"; text: string }
   | { type: "specialist"; specialist: StreamSpecialistKey; tool: string; success: boolean }
   | { type: "done"; usage: StreamUsageFlags }
-  | { type: "error"; error: string }
+  | { type: "error"; error: string; code?: string; stage?: string; retryable?: boolean; detail?: string }
 
 export const STREAM_CONTENT_TYPE = "application/x-ndjson; charset=utf-8"
 
@@ -37,7 +37,16 @@ export function parseStreamLine(line: string): AgentStreamEvent | null {
   ) {
     return { type: "specialist", specialist: event.specialist as StreamSpecialistKey, tool: event.tool, success: event.success }
   }
-  if (event.type === "error" && typeof event.error === "string") return { type: "error", error: event.error }
+  if (event.type === "error" && typeof event.error === "string") {
+    return {
+      type: "error",
+      error: event.error,
+      ...(typeof event.code === "string" ? { code: event.code } : {}),
+      ...(typeof event.stage === "string" ? { stage: event.stage } : {}),
+      ...(typeof event.retryable === "boolean" ? { retryable: event.retryable } : {}),
+      ...(typeof event.detail === "string" ? { detail: event.detail } : {}),
+    }
+  }
   if (event.type === "done" && event.usage && typeof event.usage === "object") {
     const usage = event.usage as Record<string, unknown>
     return {

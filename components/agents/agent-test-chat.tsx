@@ -56,11 +56,13 @@ function TraceLine({ trace }: { trace: TraceStep[] }) {
   )
 }
 
+type ErrorInfo = { message: string; code?: string; stage?: string; detail?: string }
+
 export function AgentTestChat({ canTest, agentName }: { canTest: boolean; agentName: string }) {
   const [messages, setMessages] = useState<UiMessage[]>([])
   const [draft, setDraft] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<ErrorInfo | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
 
@@ -86,10 +88,20 @@ export function AgentTestChat({ canTest, agentName }: { canTest: boolean; agentN
       })
 
       if (!response.ok || !response.body) {
-        const data = (await response.json().catch(() => ({}))) as { error?: string }
+        const data = (await response.json().catch(() => ({}))) as {
+          error?: string
+          code?: string
+          stage?: string
+          detail?: string
+        }
         setMessages(messages)
         setDraft(content)
-        setError(data.error ?? "Não foi possível gerar a resposta.")
+        setError({
+          message: data.error ?? "Não foi possível gerar a resposta.",
+          code: data.code,
+          stage: data.stage,
+          detail: data.detail,
+        })
         return
       }
 
@@ -99,7 +111,7 @@ export function AgentTestChat({ canTest, agentName }: { canTest: boolean; agentN
       let reply = ""
       let trace: TraceStep[] = []
       let finished = false
-      let failure: string | null = null
+      let failure: ErrorInfo | null = null
 
       const handleLine = (line: string) => {
         const event = parseStreamLine(line)
@@ -111,7 +123,7 @@ export function AgentTestChat({ canTest, agentName }: { canTest: boolean; agentN
           reply += event.text
           setMessages([...history, { role: "assistant", content: reply, trace }])
         } else if (event.type === "error") {
-          failure = event.error
+          failure = { message: event.error, code: event.code, stage: event.stage, detail: event.detail }
         } else {
           finished = true
           setNotice(
@@ -136,11 +148,11 @@ export function AgentTestChat({ canTest, agentName }: { canTest: boolean; agentN
       if (failure || !finished) {
         // Descarta a resposta parcial para não enviá-la como histórico ao modelo.
         setMessages(history)
-        setError(failure ?? "A resposta foi interrompida. Tente novamente.")
+        setError(failure ?? { message: "A resposta foi interrompida. Tente novamente.", code: "STREAM_INTERRUPTED" })
       }
     } catch {
       setMessages(history)
-      setError("Falha de conexão. Verifique sua internet e tente novamente.")
+      setError({ message: "Falha de conexão. Verifique sua internet e tente novamente.", code: "NETWORK" })
     } finally {
       setIsLoading(false)
     }
@@ -255,9 +267,16 @@ export function AgentTestChat({ canTest, agentName }: { canTest: boolean; agentN
       </div>
 
       {error && (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
+        <div role="alert" className="flex flex-col gap-1 text-sm">
+          <p className="text-destructive">{error.message}</p>
+          {(error.code || error.stage || error.detail) && (
+            <p className="break-words font-mono text-xs text-muted-foreground">
+              {[error.code && `código: ${error.code}`, error.stage && `etapa: ${error.stage}`, error.detail]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          )}
+        </div>
       )}
       {notice && (
         <p role="status" className="text-sm text-muted-foreground">

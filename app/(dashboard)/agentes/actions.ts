@@ -5,6 +5,8 @@ import {
   isAIAgentType,
   normalizeAIAgentConfig,
   normalizeAIAgentStatus,
+  normalizeSpecialists,
+  specialistKeys,
   validateAIAgentConfig,
 } from "@/lib/domain/ai-agents"
 import type { AIAgentConfig, AIAgentStatus, AIAgentType } from "@/lib/domain/types"
@@ -51,6 +53,20 @@ export async function saveAIAgentConfig(type: AIAgentType, input: AIAgentConfig)
     )
   if (error) return { error: "Não foi possível salvar as configurações. Tente novamente." }
 
+  if (type === "atendimento") {
+    // Lê de volta o que foi gravado: o teste e o WhatsApp dependem de `specialists` estar persistido.
+    const { data: saved } = await context.supabase
+      .from("ai_agent_settings")
+      .select("config")
+      .eq("company_id", context.companyId)
+      .eq("agent_type", type)
+      .maybeSingle()
+    const persisted = normalizeSpecialists((saved?.config as { specialists?: unknown } | null)?.specialists)
+    const matches = specialistKeys.every((key) => persisted[key] === config.specialists[key])
+    if (!matches) return { error: "Os especialistas não foram gravados corretamente. Tente salvar novamente." }
+  }
+
+  revalidatePath("/agentes/testar")
   revalidateAgentPages(type)
   return { success: true }
 }

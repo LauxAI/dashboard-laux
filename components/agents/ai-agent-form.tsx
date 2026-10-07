@@ -11,7 +11,13 @@ import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { AI_AGENT_LIMITS, hasGreetingField, normalizeAIAgentConfig, validateAIAgentConfig } from "@/lib/domain/ai-agents"
+import {
+  AI_AGENT_LIMITS,
+  hasGreetingField,
+  normalizeAIAgentConfig,
+  specialistKeys,
+  validateAIAgentConfig,
+} from "@/lib/domain/ai-agents"
 import { aiAgentTones } from "@/lib/domain/catalogs"
 import type { AIAgentConfig, AIAgentTone, AIAgentType, SpecialistKey } from "@/lib/domain/types"
 
@@ -54,6 +60,8 @@ const specialistOptions: { key: SpecialistKey; label: string; description: strin
 export function AIAgentForm({ type, initialConfig }: { type: AIAgentType; initialConfig: AIAgentConfig }) {
   const [config, setConfig] = useState(initialConfig)
   const [isPending, startTransition] = useTransition()
+  const [savedSpecialists, setSavedSpecialists] = useState(initialConfig.specialists)
+  const specialistsChanged = specialistKeys.some((key) => config.specialists[key] !== savedSpecialists[key])
 
   const update = <K extends keyof AIAgentConfig>(key: K, value: AIAgentConfig[K]) =>
     setConfig((current) => ({ ...current, [key]: value }))
@@ -68,7 +76,10 @@ export function AIAgentForm({ type, initialConfig }: { type: AIAgentType; initia
     startTransition(async () => {
       const result = await saveAIAgentConfig(type, config)
       if ("error" in result) toast.error(result.error)
-      else toast.success("Configurações do agente salvas.")
+      else {
+        setSavedSpecialists(config.specialists)
+        toast.success("Configurações do agente salvas.")
+      }
     })
   }
 
@@ -218,6 +229,11 @@ export function AIAgentForm({ type, initialConfig }: { type: AIAgentType; initia
               />
             ))}
           </div>
+          {specialistsChanged && (
+            <p role="status" className="px-6 pb-4 text-sm text-muted-foreground">
+              Alterações nos especialistas só valem no teste e no WhatsApp depois de salvar.
+            </p>
+          )}
         </SectionCard>
       )}
 

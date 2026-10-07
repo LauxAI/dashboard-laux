@@ -291,9 +291,14 @@ export function buildKnowledgeTools(context: SpecialistContext, runtime: Special
   return tools
 }
 
+/** Ferramentas que alteram a agenda de verdade. No teste (`dryRun`) nada é gravado, então nenhuma conta. */
+const MUTATING_TOOLS = ["criar_agendamento", "confirmar_agendamento", "cancelar_agendamento", "remarcar_agendamento"]
+
 export type PreparedSpecialists = {
   specialists?: SpecialistContext
   tools?: ToolSet
+  /** Ferramentas cuja execução impede refazer a resposta em outro modelo. */
+  sideEffectTools?: string[]
   /** Estado de cada especialista, para a interface de teste. */
   failed: boolean
 }
@@ -319,6 +324,7 @@ export async function prepareSpecialists(
     return {
       specialists: hasAny ? context : undefined,
       tools: Object.keys(tools).length > 0 ? tools : undefined,
+      sideEffectTools: runtime.dryRun ? [] : MUTATING_TOOLS,
       failed: false,
     }
   } catch (error) {
