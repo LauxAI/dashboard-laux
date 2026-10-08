@@ -132,10 +132,12 @@ export function AppSidebar({
                 <ChevronsUpDown className="ml-auto size-3.5 shrink-0 text-sidebar-foreground/50" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" side="top" className="w-56">
-                <DropdownMenuLabel className="flex flex-col gap-0.5">
-                  <span className="text-sm font-medium text-foreground">{userName}</span>
-                  <span className="truncate text-xs font-normal text-muted-foreground">{userEmail}</span>
-                </DropdownMenuLabel>
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel className="flex flex-col gap-0.5">
+                    <span className="text-sm font-medium text-foreground">{userName}</span>
+                    <span className="truncate text-xs font-normal text-muted-foreground">{userEmail}</span>
+                  </DropdownMenuLabel>
+                </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
                   <DropdownMenuItem onClick={() => router.push("/configuracoes")}>

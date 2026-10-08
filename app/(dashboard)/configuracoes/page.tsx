@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { getCurrentUser } from "@/lib/data/queries"
+import { ThemePreference } from "@/components/settings/theme-preference"
 import { deleteAccount, updateProfile } from "./actions"
 
 export default async function ConfiguracoesPage() {
@@ -30,6 +31,18 @@ export default async function ConfiguracoesPage() {
             </div>
           </FieldGroup>
         </ActionForm>
+      </SectionCard>
+
+      <SectionCard title="Preferências" description="Personalize a aparência da sua experiência">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-1">
+            <p className="text-sm font-medium text-foreground">Tema da aplicação</p>
+            <p className="text-pretty text-sm text-muted-foreground">
+              Escolha entre o tema claro e o tema escuro. A preferência fica salva neste dispositivo.
+            </p>
+          </div>
+          <ThemePreference />
+        </div>
       </SectionCard>
 
       <SectionCard
