@@ -6,6 +6,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { Button } from "@/components/ui/button"
+import { ThemeToggle } from "@/components/settings/theme-toggle"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
@@ -101,6 +102,8 @@ export function AppHeader({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <ThemeToggle />
 
         <DropdownMenu>
           <DropdownMenuTrigger render={<Button variant="ghost" className="gap-2 px-1.5" />}>
