@@ -70,7 +70,9 @@ export function AppHeader({
             )}
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-80">
-            <DropdownMenuLabel>Notificações</DropdownMenuLabel>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Notificações</DropdownMenuLabel>
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
             {notifications.length > 0 ? (
               <DropdownMenuGroup>
@@ -110,10 +112,12 @@ export function AppHeader({
             <span className="hidden text-sm font-medium sm:inline">{user.name}</span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel className="flex flex-col gap-0.5">
-              <span className="text-sm font-medium text-foreground">{user.name}</span>
-              <span className="truncate text-xs font-normal text-muted-foreground">{user.email}</span>
-            </DropdownMenuLabel>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="flex flex-col gap-0.5">
+                <span className="text-sm font-medium text-foreground">{user.name}</span>
+                <span className="truncate text-xs font-normal text-muted-foreground">{user.email}</span>
+              </DropdownMenuLabel>
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem onClick={() => router.push("/configuracoes")}>
