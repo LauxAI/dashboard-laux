@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  colorScheme: 'dark',
+  colorScheme: 'dark light',
   themeColor: '#0a0a0a',
 }
 
@@ -30,7 +30,11 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="pt-BR" className={`bg-background ${inter.variable} ${geistMono.variable}`}>
+    <html
+      lang="pt-BR"
+      suppressHydrationWarning
+      className={`bg-background ${inter.variable} ${geistMono.variable}`}
+    >
       <body className="font-sans antialiased">
         <ThemeProvider>
           <TooltipProvider>

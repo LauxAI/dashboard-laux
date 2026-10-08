@@ -5,7 +5,14 @@ import { ThemeProvider as NextThemesProvider } from "next-themes"
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   return (
-    <NextThemesProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
+    <NextThemesProvider
+      attribute="class"
+      defaultTheme="dark"
+      enableSystem={false}
+      storageKey="lauxai-theme"
+      enableColorScheme
+      disableTransitionOnChange
+    >
       {children}
     </NextThemesProvider>
   )
