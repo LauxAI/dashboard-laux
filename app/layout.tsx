@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter, Geist_Mono } from 'next/font/google'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/sonner'
+import { ThemeProvider } from '@/components/theme-provider'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
@@ -29,12 +30,14 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="pt-BR" className={`dark bg-background ${inter.variable} ${geistMono.variable}`}>
+    <html lang="pt-BR" className={`bg-background ${inter.variable} ${geistMono.variable}`}>
       <body className="font-sans antialiased">
-        <TooltipProvider>
-          {children}
-          <Toaster />
-        </TooltipProvider>
+        <ThemeProvider>
+          <TooltipProvider>
+            {children}
+            <Toaster />
+          </TooltipProvider>
+        </ThemeProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
