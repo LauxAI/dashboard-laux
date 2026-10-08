@@ -15,7 +15,8 @@ export const metadata: Metadata = {
     'Acompanhe e gerencie a operação de automação inteligente da sua empresa com a LAUXAI CORE.',
   generator: 'v0.app',
   icons: {
-    icon: [{ url: '/icon.svg', type: 'image/svg+xml' }],
+    icon: [{ url: '/brand/lauxai-mark.png', type: 'image/png', sizes: '79x83' }],
+    apple: [{ url: '/apple-icon.png', type: 'image/png', sizes: '79x83' }],
   },
 }
 
